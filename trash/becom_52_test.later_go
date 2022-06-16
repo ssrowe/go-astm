@@ -2,14 +2,15 @@ package e2e
 
 import (
 	"fmt"
-	"github.com/DRK-Blutspende-BaWueHe/go-astm/astm1384"
 	"io/ioutil"
 	"testing"
 	"time"
 
+	"github.com/DRK-Blutspende-BaWueHe/go-astm/astm1384"
+
 	"github.com/stretchr/testify/assert"
 )
-
+/*
 func TestReadfileBeCom52(t *testing.T) {
 	fileData, err := ioutil.ReadFile("../protocoltest/becom/5.2/bloodtype.astm")
 	if err != nil {
