@@ -148,7 +148,7 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 			fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
 		case "float32", "float64":
 			//TODO: Add annotation for amount of decimals
-			value := fmt.Sprintf("%.3", field.Float())
+			value := fmt.Sprintf("%f.3", field.Float())
 			fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
 		case "Time":
 			time := field.Interface().(time.Time)

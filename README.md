@@ -25,22 +25,59 @@ Install the package with the following command.
 ``` shell
 go get github.com/DRK-Blutspende-BaWueHe/go-astm/...
 ```
-## Quick Start
 
-The following Go code decodes a ASTM read from a File.
+## Define your Structure
+
+Every instrument is a little different. Use the lis2a2-default implmenetation provided with this library as a starting point.
 
 ``` go
-fileData, err := ioutil.ReadFile("protocoltest/becom/5.2/bloodtype.astm")
+type CommentedResult struct {
+	Result  Result    `astm:"R"`
+	Comment []Comment `astm:"C,optional"`
+}
+
+type PORC struct {
+	Patient         Patient   `astm:"P"`
+	Comment         []Comment `astm:"C,optional"`
+	Order           Order     `astm:"O"`
+	CommentedResult []CommentedResult
+}
+
+// https://samson-rus.com/wp-content/files/LIS2-A2.pdf Page 30 : Logial Structure of Message
+type DefaultMessage struct {
+	Header       Header       `astm:"H"`
+	Manufacturer Manufacturer `astm:"M,optional"`
+	OrderResults []PORC
+	Terminator   Terminator `astm:"L"`
+}
+```
+
+## Reading ASTM
+
+The following Go code decodes a ASTM provided as a string and stores all its information in the &message.
+
+``` go
+var message lis2a2.DefaultMessage
+
+err := lis2a2.Unmarshal([]byte(textdata), &message,
+		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
 if err != nil {
   log.Fatal(err)		
 }
+```
 
-message, err := astm1384.Unmarshal(fileData,
- astm1384.EncodingWindows1252, 
- astm1384.TimezoneEuropeBerlin, 
- astm1384.LIS2A2)
+## Writing ASM
 
-if err != nil {
-   log.Fatal(err)		
+Converting an annotated Structure (see above) to an enocded bytestream. 
+
+The bytestream is encoded by-row, lacking the CR code at the end. 
+
+``` go
+lines, err := lis2a2.Marshal(msg, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.ShortNotation)
+
+// output on screen
+for _, line := range lines {
+		linestr := string(line)
+		fmt.Println(linestr)
 }
 ```
