@@ -84,7 +84,7 @@ func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encod
 			if currentRecord.Kind() == reflect.Slice { // it is an annotated slice
 				if !currentRecord.IsNil() {
 					for x := 0; x < currentRecord.Len(); x++ {
-						outs, err := processOneRecord(recordType, currentRecord.Index(x), x+1, repeatDelimiter, componentDelimiter, escapeDelimiter) // fmt.Println(outp)
+						outs, err := processOneRecord(recordType, currentRecord.Index(x), x+1, location, repeatDelimiter, componentDelimiter, escapeDelimiter) // fmt.Println(outp)
 						if err != nil {
 							return nil, err
 						}
@@ -92,7 +92,7 @@ func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encod
 					}
 				}
 			} else {
-				outs, err := processOneRecord(recordType, currentRecord, 1, repeatDelimiter, componentDelimiter, escapeDelimiter) // fmt.Println(outp)
+				outs, err := processOneRecord(recordType, currentRecord, 1, location, repeatDelimiter, componentDelimiter, escapeDelimiter) // fmt.Println(outp)
 				if err != nil {
 					return nil, err
 				}
@@ -105,7 +105,7 @@ func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encod
 	return buffer, nil
 }
 
-func processOneRecord(recordType string, currentRecord reflect.Value, generatedSequenceNumber int, repeatDelimiter, componentDelimiter, escapeDelimiter *string) (string, error) {
+func processOneRecord(recordType string, currentRecord reflect.Value, generatedSequenceNumber int, location *time.Location, repeatDelimiter, componentDelimiter, escapeDelimiter *string) (string, error) {
 
 	fieldList := make(OutputRecords, 0)
 
@@ -146,11 +146,26 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 			}
 
 			fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
-		case "float32":
-		case "float64":
+		case "float32", "float64":
+			//TODO: Add annotation for amount of decimals
+			value := fmt.Sprintf("%.3", field.Float())
+			fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
 		case "Time":
-			//t := time.Time(field.Interface())
-			//fmt.Println("Time = ", t)
+			time := field.Interface().(time.Time)
+
+			if !time.IsZero() {
+
+				fmt.Println("Time = ", time)
+
+				if sliceContainsString(fieldAstmTagsList, ANNOTATION_LONGDATE) {
+					value := time.In(location).Format("20060102150405")
+					fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
+				} else { // short date
+					value := time.In(location).Format("20060102")
+					fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
+				}
+			}
+
 		default:
 			return "", errors.New(fmt.Sprintf("Invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name()))
 		}
