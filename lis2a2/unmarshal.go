@@ -90,6 +90,7 @@ const (
 	ANNOTATION_DELIMITER = "delimiter" // annotation that triggers the delimiters in the scanner to be reset
 	ANNOTATION_REQUIRED  = "require"   // field-annotation: by default all fields are optinal
 	ANNOTATION_OPTIONAL  = "optional"  // record-annotation: by default all records are mandatory
+	ANNOTATION_SEQUENCE  = "sequence"  // indicating that a sequence number should be generated (output only)
 )
 
 var (

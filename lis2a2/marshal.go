@@ -1,262 +1,238 @@
 package lis2a2
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
-	"strconv"
+	"sort"
 	"strings"
 	"time"
 )
 
-func Marshal(message interface{}, enc Encoding, tz Timezone, linebreak LineBreak) ([]byte, error) {
+/** Marshal - wrap datastructure to code
+**/
+func Marshal(message interface{}, enc Encoding, tz Timezone, notation Notation) ([][]byte, error) {
 
 	location, err := time.LoadLocation(string(tz))
 	if err != nil {
-		return []byte{}, err
+		return [][]byte{}, err
 	}
 
-	buffer, err := digIn(message, 1, enc, location, linebreak)
+	// default delmiters. These will be overwritten by the first occurence of "delimter"-annotation
+	repeatDelimiter := "\\"
+	componentDelimiter := "^"
+	escapeDelimiter := "&"
+
+	buffer, err := iterateStructFieldsAndBuildOutput(message, 1, enc, location, &repeatDelimiter, &componentDelimiter, &escapeDelimiter)
 
 	return buffer, err
 }
 
-func digIn(message interface{}, depth int, enc Encoding, location *time.Location, linebreak LineBreak) ([]byte, error) {
+type OutputRecord struct {
+	Field, Repeat, Component int
+	Value                    string
+}
 
-	//repeatDelimiter := "\\"
-	//componentDelimiter := "^"
-	//escapeDelimiter := "&"
+type OutputRecords []OutputRecord
 
-	buffer := make([]byte, 0)
-	// targetStructType := reflect.TypeOf(message).Elem()
-	//targetStructValue := reflect.ValueOf(message).Elem()
+func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encoding, location *time.Location,
+	repeatDelimiter, componentDelimiter, escapeDelimiter *string) ([][]byte, error) {
 
+	generatedSequenceNumber := 1 //TODO: move outside to apply on arrays
+
+	buffer := make([][]byte, 0)
+
+	messageValue := reflect.ValueOf(message)
 	messageType := reflect.TypeOf(message)
-	//fmt.Printf("\n\ndigging into structure %+v\n", messageType)
 
-	for i := 0; i < messageType.NumField(); i++ {
+	for i := 0; i < messageValue.NumField(); i++ {
 
-		currentRecordType := messageType.Field(i)
-		currentRecordValue := reflect.ValueOf(message).Field(i)
-		fmt.Println("Field...", currentRecordType)
-		fmt.Println("     ...", currentRecordValue)
-		//ftype := targetStructType.Field(i)
-		astmTag := currentRecordType.Tag.Get("astm")
-		astmTagsList := strings.Split(astmTag, ",")
+		currentRecord := messageValue.Field(i)
+		recordAstmTag := messageType.Field(i).Tag.Get("astm")
+		recordAstmTagsList := strings.Split(recordAstmTag, ",")
 
-		if len(astmTagsList) <= 0 { // nothing anotated, skipping that
+		generatedSequenceNumber = 1 // for each record start fresh
+
+		if len(recordAstmTagsList) <= 0 { // nothing anotated, skipping that
 			continue
 		}
 
-		fmt.Println("Dealing with ", astmTagsList[0])
+		if len(recordAstmTagsList) == 0 { // no annotation = no record
+			// TODO: Descend if its an array or a struct of such
+			fmt.Println("Not a struct")
+		} else {
 
-		if currentRecordType.Type.Kind() == reflect.Struct {
-			fmt.Println("Its a struct!")
-			//--------------------------------------------------------------------------------here it sucks
-			for i := 0; i < currentRecordType.Type.NumField(); i++ {
-				field := currentRecordType.Type.Field(i)
-				value := reflect.ValueOf(message).Field(i)
-				fmt.Printf("%+v = %+v\n", field.Name, value)
-			}
+			fieldList := make(OutputRecords, 0)
 
-		}
-		//recordType := string(astmTagsList[0][0])
-		/*		if oneRec, err := encodeStruct(recordType,
-					messageType.Field(i),
-					repeatDelimiter, componentDelimiter, escapeDelimiter); err == nil {
-					for _, c := range oneRec {
-						buffer = append(buffer, c)
-					}
-					fmt.Println("Havving produced : ", string(oneRec))
-				} else {
-					fmt.Println("Failed here with ", err)
-				}*/
-	}
+			for i := 0; i < currentRecord.NumField(); i++ {
 
-	return buffer, nil
-}
+				field := currentRecord.Field(i)
+				fieldAstmTag := currentRecord.Type().Field(i).Tag.Get("astm")
+				fieldAstmTagsList := strings.Split(fieldAstmTag, ",")
 
-func encodeStruct(recordType string, record interface{}, repeatDelimiter, componentDelimiter, escapeDelimiter string) ([]byte, error) {
-
-	buffer := make([]byte, 0)
-	buffer = append(buffer, byte(recordType[0]))
-	buffer = append(buffer, byte('|'))
-
-	messageType := reflect.TypeOf(record).Elem()
-	// messageValue := reflect.ValueOf(record).Elem()
-	fmt.Printf("Fuckingshit %+v\n", messageType)
-	os.Exit(-1)
-	fmt.Printf("da struct: %+v\n", messageType)
-	for i := 0; i < messageType.NumField(); i++ {
-		fmt.Printf("Some field.... %s \n", "some")
-	}
-
-	return buffer, nil
-}
-
-func MarshalOlde(message interface{}, enc Encoding, tz Timezone) ([]byte, error) {
-	return nil, nil
-	/*var buffer bytes.Buffer
-
-	location, err := time.LoadLocation(string(tz))
-	if err != nil {
-		return []byte{}, err
-	}
-
-	err = convertToASTMFileRecord("H", message.Header, []string{"\\", "^", "&"}, location, &buffer)
-	if err != nil {
-		log.Println(err)
-		return []byte{}, errors.New(fmt.Sprintf("Failed to marshal header: %s", err))
-	}
-	buffer.Write([]byte{10, 13})
-
-	if message.Manufacturer != nil {
-		err := convertToASTMFileRecord("M", message.Manufacturer, []string{"\\", "^", "&"}, location, &buffer)
-		if err != nil {
-			log.Println(err)
-			return []byte{}, errors.New(fmt.Sprintf("Failed to marshal manufacturer-record: %s", err))
-		}
-		buffer.Write([]byte{10, 13})
-	}
-
-	for i, record := range message.Records {
-		if record.Patient != nil {
-			record.Patient.SequenceNumber = i + 1
-			err := convertToASTMFileRecord("P", record.Patient, []string{"|", "^", "&"}, location, &buffer)
-			if err != nil {
-				log.Println(err)
-				return []byte{}, errors.New(fmt.Sprintf("Failed to marshal header: %s", err))
-			}
-			buffer.Write([]byte{10, 13})
-
-			for orderResultsIdx, orderResults := range record.OrdersAndResults {
-				orderResults.Order.SequenceNumber = orderResultsIdx + 1
-				err := convertToASTMFileRecord("O", orderResults.Order, []string{"|", "^", "&"}, location, &buffer)
+				fieldIdx, repeatIdx, componentIdx, err := readFieldAddressAnnotation(fieldAstmTagsList[0])
 				if err != nil {
-					log.Println(err)
-					return []byte{}, errors.New(fmt.Sprintf("Failed to marshal order-records: %s", err))
+					return nil, errors.New(fmt.Sprintf("Invalid field-address. (%s)", err))
 				}
-				buffer.Write([]byte{10, 13})
 
-				for resultsIdx, result := range orderResults.Results {
-					result.Result.SequenceNumber = resultsIdx + 1
-					err := convertToASTMFileRecord("R", result.Result, []string{"|", "^", "&"}, location, &buffer)
-					if err != nil {
-						log.Println(err)
-						return []byte{}, errors.New(fmt.Sprintf("Failed to marshal result-record %s", err))
+				//fmt.Printf("Decode %+v to %d.%d.%d for %s\n", fieldAstmTagsList, fieldIdx, repeatIdx, componentIdx, field.String())
+
+				switch field.Type().Name() {
+				case "string":
+					value := ""
+
+					if sliceContainsString(fieldAstmTagsList, ANNOTATION_SEQUENCE) {
+						return nil, errors.New(fmt.Sprintf("Invalid annotation %s for string-field", ANNOTATION_SEQUENCE))
 					}
-					buffer.Write([]byte{10, 13})
-					for commentIdx, comment := range result.Comments {
-						comment.SequenceNumber = commentIdx + 1
-						err := convertToASTMFileRecord("C", comment, []string{"|", "^", "&"}, location, &buffer)
-						if err != nil {
-							log.Println(err)
-							return []byte{}, errors.New(fmt.Sprintf("Failed to marshal result-comment %s", err))
-						}
-						buffer.Write([]byte{10, 13})
+
+					// if no delimiters are given, default is \^&
+					if sliceContainsString(fieldAstmTagsList, ANNOTATION_DELIMITER) && field.String() == "" {
+						value = *repeatDelimiter + *componentDelimiter + *escapeDelimiter
+					} else {
+						value = field.String()
 					}
+
+					fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
+				case "int":
+					value := fmt.Sprintf("%d", field.Int())
+					if sliceContainsString(fieldAstmTagsList, ANNOTATION_SEQUENCE) {
+						value = fmt.Sprintf("%d", generatedSequenceNumber)
+						generatedSequenceNumber = generatedSequenceNumber + 1
+					}
+
+					fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
+				case "float32":
+				case "float64":
+				case "Time":
+					//t := time.Time(field.Interface())
+					//fmt.Println("Time = ", t)
+				default:
+					return nil, errors.New(fmt.Sprintf("Invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name()))
 				}
+
 			}
-		}
-	}
-	buffer.Write([]byte("L|1|N"))
-	buffer.Write([]byte{10, 13})
 
-	return buffer.Bytes(), nil */
+			outp := generateOutputRecord(recordAstmTagsList[0], fieldList, *repeatDelimiter, *componentDelimiter, *escapeDelimiter)
+			// fmt.Println(outp)
+			buffer = append(buffer, []byte(outp))
+		}
+
+	}
+
+	return buffer, nil
 }
 
-func convertToASTMFileRecord(recordType string, target interface{}, delimiter []string, tz *time.Location, buffer *bytes.Buffer) error {
+func addASTMFieldToList(data []OutputRecord, field, repeat, component int, value string) []OutputRecord {
 
-	t := reflect.TypeOf(target).Elem()
+	or := OutputRecord{
+		Field:     field,
+		Repeat:    repeat,
+		Component: component,
+		Value:     value,
+	}
 
-	entries := make(map[int]string, 0)
+	data = append(data, or)
+	return data
+}
 
-	maxIdx := 0
-
-	for i := 0; i < t.NumField(); i++ {
-		astmTag := t.Field(i).Tag.Get("astm")
-		astmTagsList := strings.Split(astmTag, ",")
-		if len(astmTagsList) == 0 || astmTag == "" {
-			continue // nothing to process when someone requires astm:
+// used for sorting
+func (or OutputRecords) Len() int { return len(or) }
+func (or OutputRecords) Less(i, j int) bool {
+	if or[i].Field == or[j].Field {
+		if or[i].Repeat == or[j].Repeat {
+			return or[i].Component < or[j].Component
+		} else {
+			return or[i].Repeat < or[j].Repeat
 		}
-		idx, err := strconv.Atoi(astmTagsList[0])
-		idx = idx - 1
-		if idx < 0 {
-			return errors.New(fmt.Sprintf("Illegal annotation <%s> in for field %s", astmTag, t.Name()))
-		}
-		if err != nil {
-			return err
-		}
-		if idx > maxIdx {
-			maxIdx = idx
-		}
+	} else {
+		return or[i].Field < or[j].Field
+	}
+}
+func (or OutputRecords) Swap(i, j int) { or[i], or[j] = or[j], or[i] }
 
-		isLongDate := false
-		for i := 0; i < len(astmTagsList); i++ {
-			if astmTagsList[i] == "longdate" {
-				isLongDate = true
-			}
-		}
+/* Converting a list of values (all string already) to the astm format. this funciton works only for one record
+   example:
+    (0, 0, 2) = first-arr1
+    (0, 0, 0) = third-arr1
+    (0, 1, 0) = first-arr2
+    (0, 1, 1) = second-arr2
 
-		field := reflect.ValueOf(target).Elem().Field(i)
-		fieldValue := field.Interface()
+	-> .... "|first-arr1^^third-arr1\fist-arr2^second-arr2|"
 
-		switch fieldValue.(type) {
-		case int:
-			entries[idx] = strconv.Itoa(int(field.Int()))
-		case string:
-			entries[idx] = string(field.String())
-		case []string:
-			arry := fieldValue.([]string)
-			outString := ""
-			for i := 0; i < len(arry); i++ {
-				outString = outString + arry[i]
-				if i < len(arry)-1 {
-					outString = outString + "^"
+	returns the full record for output to astm file
+*/
+
+func generateOutputRecord(recordtype string, fieldList OutputRecords, REPEAT_DELIMITER, COMPONENT_DELIMITER, ESCAPE_DELMITER string) string {
+
+	output := ""
+
+	sort.Sort(fieldList)
+
+	componentbuffer := make([]string, 100)
+	maxComponent := 0
+
+	repeatbuffer := make([]string, 100)
+	maxRepeat := 0
+
+	// add a terminator to reduce abortion-spaghetti-code
+	fieldList = append(fieldList, OutputRecord{Field: -1})
+
+	fieldGroup := -1 // groupchange on every field-change
+	repeatGroup := 0 // groupchange on every repeat-group (see astm-format field,repeat,component,(escape))
+
+	output = output + recordtype + "|" // Record-ID, typical "H", "R", "O", .....
+
+	for _, field := range fieldList {
+
+		fieldGroupBreak := field.Field != fieldGroup && fieldGroup != -1
+		repeatGroupBreak := field.Repeat != repeatGroup
+		if fieldGroupBreak || repeatGroupBreak {
+
+			buffer := ""
+			for c := 0; c <= maxComponent; c++ {
+				buffer = buffer + componentbuffer[c]
+				if c < maxComponent {
+					buffer = buffer + COMPONENT_DELIMITER
 				}
 			}
-			entries[idx] = outString
-		case [][]string:
-			arrym := fieldValue.([][]string)
-			outString := ""
-			for i := 0; i < len(arrym); i++ {
-				subarray := arrym[i]
-				for j := 0; j < len(subarray); j++ {
-					outString = outString + subarray[j]
-					if j < len(subarray)-1 {
-						outString = outString + "^"
+
+			repeatbuffer[repeatGroup] = buffer // sort components to repeatGroup, until no more items, then break
+
+			if fieldGroupBreak { // new field starts = write buffer and empty
+				for i := 0; i <= maxRepeat; i++ {
+					output = output + repeatbuffer[i]
+					if i < maxRepeat {
+						output = output + REPEAT_DELIMITER
 					}
 				}
-				if i < len(arrym)-1 {
-					outString = outString + "\\"
-				}
+				output = output + "|"
+				maxRepeat = 0
+				repeatGroup = 0
 			}
-			entries[idx] = outString
-		case time.Time:
-			if fieldValue.(time.Time).IsZero() {
-				// dates can be zero = no output
-				break
+
+			if repeatGroupBreak {
+				repeatGroup = field.Repeat
 			}
-			if isLongDate {
-				entries[idx] = fieldValue.(time.Time).In(tz).Format("20060102150405")
-			} else {
-				entries[idx] = fieldValue.(time.Time).Format("20060102")
+
+			for c := 0; c < len(componentbuffer); c++ {
+				componentbuffer[c] = ""
 			}
-		default:
-			return errors.New(fmt.Sprintf("Unsupported field type %s", field.Type()))
+			maxComponent = 0
+			fieldGroup = field.Field
+		}
+
+		if fieldGroup == -1 { // starting the very first group in iteration
+			fieldGroup = field.Field
+		}
+
+		componentbuffer[field.Component] = field.Value
+		if field.Component > maxComponent {
+			maxComponent = field.Component
+		}
+		if field.Repeat > maxRepeat {
+			maxRepeat = field.Repeat
 		}
 	}
 
-	output := recordType + "|"
-	for i := 0; i <= maxIdx; i++ {
-		value := entries[i]
-		output = output + value
-		if i < maxIdx {
-			output = output + "|"
-		}
-	}
-	buffer.Write([]byte(output))
-	return nil
+	return output
 }

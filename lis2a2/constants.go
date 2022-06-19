@@ -23,3 +23,8 @@ type LineBreak int
 const CR LineBreak = 0x13
 const LF LineBreak = 0x10
 const CRLF LineBreak = 0x1310
+
+type Notation int
+
+const StandardNotation = 1
+const ShortNotation = 2
