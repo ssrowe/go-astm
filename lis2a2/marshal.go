@@ -23,7 +23,7 @@ func Marshal(message interface{}, enc Encoding, tz Timezone, notation Notation) 
 	componentDelimiter := "^"
 	escapeDelimiter := "&"
 
-	buffer, err := iterateStructFieldsAndBuildOutput(message, 1, enc, location, &repeatDelimiter, &componentDelimiter, &escapeDelimiter)
+	buffer, err := iterateStructFieldsAndBuildOutput(message, 1, enc, location, notation, &repeatDelimiter, &componentDelimiter, &escapeDelimiter)
 
 	return buffer, err
 }
@@ -35,10 +35,8 @@ type OutputRecord struct {
 
 type OutputRecords []OutputRecord
 
-func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encoding, location *time.Location,
+func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encoding, location *time.Location, notation Notation,
 	repeatDelimiter, componentDelimiter, escapeDelimiter *string) ([][]byte, error) {
-
-	generatedSequenceNumber := 1 //TODO: move outside to apply on arrays
 
 	buffer := make([][]byte, 0)
 
@@ -51,75 +49,115 @@ func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encod
 		recordAstmTag := messageType.Field(i).Tag.Get("astm")
 		recordAstmTagsList := strings.Split(recordAstmTag, ",")
 
-		generatedSequenceNumber = 1 // for each record start fresh
+		if len(recordAstmTag) == 0 { // no annotation = Descend if its an array or a struct of such
 
-		if len(recordAstmTagsList) <= 0 { // nothing anotated, skipping that
-			continue
-		}
+			if currentRecord.Kind() == reflect.Slice { // array of something = iterate and recurse
+				for x := 0; x < currentRecord.Len(); x++ {
+					dood := currentRecord.Index(x).Interface()
 
-		if len(recordAstmTagsList) == 0 { // no annotation = no record
-			// TODO: Descend if its an array or a struct of such
-			fmt.Println("Not a struct")
-		} else {
-
-			fieldList := make(OutputRecords, 0)
-
-			for i := 0; i < currentRecord.NumField(); i++ {
-
-				field := currentRecord.Field(i)
-				fieldAstmTag := currentRecord.Type().Field(i).Tag.Get("astm")
-				fieldAstmTagsList := strings.Split(fieldAstmTag, ",")
-
-				fieldIdx, repeatIdx, componentIdx, err := readFieldAddressAnnotation(fieldAstmTagsList[0])
-				if err != nil {
-					return nil, errors.New(fmt.Sprintf("Invalid field-address. (%s)", err))
-				}
-
-				//fmt.Printf("Decode %+v to %d.%d.%d for %s\n", fieldAstmTagsList, fieldIdx, repeatIdx, componentIdx, field.String())
-
-				switch field.Type().Name() {
-				case "string":
-					value := ""
-
-					if sliceContainsString(fieldAstmTagsList, ANNOTATION_SEQUENCE) {
-						return nil, errors.New(fmt.Sprintf("Invalid annotation %s for string-field", ANNOTATION_SEQUENCE))
-					}
-
-					// if no delimiters are given, default is \^&
-					if sliceContainsString(fieldAstmTagsList, ANNOTATION_DELIMITER) && field.String() == "" {
-						value = *repeatDelimiter + *componentDelimiter + *escapeDelimiter
+					if bytes, err := iterateStructFieldsAndBuildOutput(dood, depth+1, enc, location, notation, repeatDelimiter, componentDelimiter, escapeDelimiter); err != nil {
+						return nil, err
 					} else {
-						value = field.String()
+						for line := 0; line < len(bytes); line++ {
+							buffer = append(buffer, bytes[line])
+						}
 					}
+				}
+			} else if currentRecord.Kind() == reflect.Struct { // got the struct straignt = recurse directly
 
-					fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
-				case "int":
-					value := fmt.Sprintf("%d", field.Int())
-					if sliceContainsString(fieldAstmTagsList, ANNOTATION_SEQUENCE) {
-						value = fmt.Sprintf("%d", generatedSequenceNumber)
-						generatedSequenceNumber = generatedSequenceNumber + 1
+				if bytes, err := iterateStructFieldsAndBuildOutput(currentRecord.Interface(), depth+1, enc, location, notation, repeatDelimiter, componentDelimiter, escapeDelimiter); err != nil {
+					return nil, err
+				} else {
+					for line := 0; line < len(bytes); line++ {
+						buffer = append(buffer, bytes[line])
 					}
-
-					fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
-				case "float32":
-				case "float64":
-				case "Time":
-					//t := time.Time(field.Interface())
-					//fmt.Println("Time = ", t)
-				default:
-					return nil, errors.New(fmt.Sprintf("Invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name()))
 				}
 
+			} else {
+				return nil, errors.New(fmt.Sprintf("Invalid Datatype without any annotation '%s'. You can use struct or slices of structs.", currentRecord.Kind()))
 			}
 
-			outp := generateOutputRecord(recordAstmTagsList[0], fieldList, *repeatDelimiter, *componentDelimiter, *escapeDelimiter)
-			// fmt.Println(outp)
-			buffer = append(buffer, []byte(outp))
+		} else {
+
+			recordType := recordAstmTagsList[0]
+
+			if currentRecord.Kind() == reflect.Slice { // it is an annotated slice
+				if !currentRecord.IsNil() {
+					for x := 0; x < currentRecord.Len(); x++ {
+						outs, err := processOneRecord(recordType, currentRecord.Index(x), x+1, repeatDelimiter, componentDelimiter, escapeDelimiter) // fmt.Println(outp)
+						if err != nil {
+							return nil, err
+						}
+						buffer = append(buffer, []byte(outs))
+					}
+				}
+			} else {
+				outs, err := processOneRecord(recordType, currentRecord, 1, repeatDelimiter, componentDelimiter, escapeDelimiter) // fmt.Println(outp)
+				if err != nil {
+					return nil, err
+				}
+				buffer = append(buffer, []byte(outs))
+			}
 		}
 
 	}
 
 	return buffer, nil
+}
+
+func processOneRecord(recordType string, currentRecord reflect.Value, generatedSequenceNumber int, repeatDelimiter, componentDelimiter, escapeDelimiter *string) (string, error) {
+
+	fieldList := make(OutputRecords, 0)
+
+	for i := 0; i < currentRecord.NumField(); i++ {
+
+		field := currentRecord.Field(i)
+		fieldAstmTag := currentRecord.Type().Field(i).Tag.Get("astm")
+		fieldAstmTagsList := strings.Split(fieldAstmTag, ",")
+
+		fieldIdx, repeatIdx, componentIdx, err := readFieldAddressAnnotation(fieldAstmTagsList[0])
+		if err != nil {
+			return "", errors.New(fmt.Sprintf("Invalid annotation for field %s : (%s)", field.Type().Name(), err))
+		}
+
+		//fmt.Printf("Decode %+v to %d.%d.%d for %s\n", fieldAstmTagsList, fieldIdx, repeatIdx, componentIdx, field.String())
+
+		switch field.Type().Name() {
+		case "string":
+			value := ""
+
+			if sliceContainsString(fieldAstmTagsList, ANNOTATION_SEQUENCE) {
+				return "", errors.New(fmt.Sprintf("Invalid annotation %s for string-field", ANNOTATION_SEQUENCE))
+			}
+
+			// if no delimiters are given, default is \^&
+			if sliceContainsString(fieldAstmTagsList, ANNOTATION_DELIMITER) && field.String() == "" {
+				value = *repeatDelimiter + *componentDelimiter + *escapeDelimiter
+			} else {
+				value = field.String()
+			}
+
+			fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
+		case "int":
+			value := fmt.Sprintf("%d", field.Int())
+			if sliceContainsString(fieldAstmTagsList, ANNOTATION_SEQUENCE) {
+				value = fmt.Sprintf("%d", generatedSequenceNumber)
+				generatedSequenceNumber = generatedSequenceNumber + 1
+			}
+
+			fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
+		case "float32":
+		case "float64":
+		case "Time":
+			//t := time.Time(field.Interface())
+			//fmt.Println("Time = ", t)
+		default:
+			return "", errors.New(fmt.Sprintf("Invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name()))
+		}
+
+	}
+
+	return generateOutputRecord(recordType, fieldList, *repeatDelimiter, *componentDelimiter, *escapeDelimiter), nil
 }
 
 func addASTMFieldToList(data []OutputRecord, field, repeat, component int, value string) []OutputRecord {
@@ -174,7 +212,7 @@ func generateOutputRecord(recordtype string, fieldList OutputRecords, REPEAT_DEL
 	repeatbuffer := make([]string, 100)
 	maxRepeat := 0
 
-	// add a terminator to reduce abortion-spaghetti-code
+	// add a terminator to reduce abortion--spaghetti-code
 	fieldList = append(fieldList, OutputRecord{Field: -1})
 
 	fieldGroup := -1 // groupchange on every field-change

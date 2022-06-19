@@ -24,6 +24,10 @@ const CR LineBreak = 0x13
 const LF LineBreak = 0x10
 const CRLF LineBreak = 0x1310
 
+/* Notation defines how the output format is build
+ShortNotation will skip all delimiters to the right of the last value
+StandardNotation will always produce as many delimiters as there are values in the export-format
+*/
 type Notation int
 
 const StandardNotation = 1
