@@ -72,7 +72,14 @@ func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Ti
 
 	}
 
-	_, _, err = reflectInputToStruct(bufferedInputLines, 1 /*recursion-depth*/, 0 /*current line*/, targetStruct, enc, tz)
+	var (
+		repeatDelimiter    = "\\"
+		componentDelimiter = "^"
+		escapeDelimiter    = "&"
+	)
+
+	_, _, err = reflectInputToStruct(bufferedInputLines, 1 /*recursion-depth*/, 0 /*current line*/, targetStruct, enc, tz,
+		&repeatDelimiter, &componentDelimiter, &escapeDelimiter)
 	if err != nil {
 		return err
 	}
@@ -93,23 +100,32 @@ const (
 	ANNOTATION_SEQUENCE  = "sequence"  // indicating that a sequence number should be generated (output only)
 )
 
-var (
-	FieldDelimiter     = "|"
-	RepeatDelimiter    = "\\"
-	ComponentDelimiter = "^"
-	EscapeDelimiter    = "&"
-)
-
 /* This function takes a string and a struct and matches the annotated fields to the string-input */
-func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLine int, targetStruct interface{}, enc Encoding, tz Timezone) (int, RETV, error) {
+func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLine int, targetStruct interface{}, enc Encoding, tz Timezone,
+	repeatDelimiter, componentDelimiter, escapeDelimiter *string) (int, RETV, error) {
 
+	if depth > 10 {
+		return currentInputLine, ERROR, errors.New(fmt.Sprintf("Maximum recursion depth reached (%d). Too many nested structures ? - aborting", depth))
+	}
+
+	if bufferedInputLines[currentInputLine] == "" {
+		// Caution : +1 might skip one; .. without could stick in loop
+		return currentInputLine + 1, UNEXPECTED, errors.New(fmt.Sprintf("Empty Input"))
+	}
+
+	var targetStructType reflect.Type
+	var targetStructValue reflect.Value
+	if reflect.TypeOf(targetStruct).Kind() == reflect.Struct {
+		targetStructType = reflect.TypeOf(targetStruct)
+		targetStructValue = reflect.ValueOf(targetStruct)
+	} else {
+		targetStructType = reflect.TypeOf(targetStruct).Elem()
+		targetStructValue = reflect.ValueOf(targetStruct).Elem()
+	}
 	timeLocation, err := time.LoadLocation(string(tz))
 	if err != nil {
 		return currentInputLine, ERROR, err
 	}
-
-	targetStructType := reflect.TypeOf(targetStruct).Elem()
-	targetStructValue := reflect.ValueOf(targetStruct).Elem()
 
 	for i := 0; i < targetStructType.NumField(); i++ {
 
@@ -124,30 +140,27 @@ func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLi
 
 		// no annotation after astm:.. provided means a nested array with more records or ignore
 		if len(astmTagsList[0]) < 1 {
+
 			// Not annotated array. If it's a struct have to recurse, otherwise skip
 			if targetStructType.Field(i).Type.Kind() == reflect.Slice {
 
 				// Array of Structs
 				if reflect.TypeOf(targetStructValue.Interface()).Kind() == reflect.Struct {
+
 					innerStructureType := targetStructType.Field(i).Type.Elem()
 
 					sliceForNestedStructure := reflect.MakeSlice(targetStructType.Field(i).Type, 0, 0)
 
-					for {
+					for currentInputLine < len(bufferedInputLines) { // iterate for as long as there is input or an unexpecte dinput type
 						allocatedElement := reflect.New(innerStructureType)
 						var err error
 						var retv RETV
 						currentInputLine, retv, err = reflectInputToStruct(bufferedInputLines, depth+1,
-							currentInputLine, allocatedElement.Interface(), enc, tz)
+							currentInputLine, allocatedElement.Interface(), enc, tz, repeatDelimiter, componentDelimiter, escapeDelimiter)
+
 						if err != nil {
 							if retv == UNEXPECTED {
-								if depth > 0 {
-									// if nested structures abort due to unexpected records that does not create an error
-									// as the parse will be continued one level higher
-									break
-								} else {
-									return currentInputLine, ERROR, err
-								}
+								break
 							}
 							if retv == ERROR { // a serious error ends the processing
 								return currentInputLine, ERROR, err
@@ -159,6 +172,34 @@ func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLi
 					}
 					continue
 				}
+			} else if targetStructType.Field(i).Type.Kind() == reflect.Struct { // struct without annotation - descending
+
+				var err error
+				var retv RETV
+
+				dood := currentRecord.Addr().Interface()
+
+				currentInputLine, retv, err = reflectInputToStruct(bufferedInputLines, depth+1, currentInputLine, dood, enc, tz,
+					repeatDelimiter, componentDelimiter, escapeDelimiter)
+				if err != nil {
+					if retv == UNEXPECTED {
+						if depth > 0 {
+							// if nested structures abort due to unexpected records that does not create an error
+							// as the parse will be continued one level higher
+							return currentInputLine, UNEXPECTED, err
+						} else {
+							return currentInputLine, ERROR, err
+						}
+					}
+					if retv == ERROR { // a serious error ends the processing
+						return currentInputLine, ERROR, err
+					}
+				}
+
+				continue
+
+			} else {
+				return currentInputLine, ERROR, errors.New(fmt.Sprintf("Invalid Datatype '%s' - abort unmarshal.", targetStructType.Field(i).Type.Kind()))
 			}
 		}
 
@@ -187,7 +228,7 @@ func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLi
 				for { // iterate for as long as the same type repeats
 					allocatedElement := reflect.New(innerStructureType)
 
-					if err = reflectAnnotatedFields(bufferedInputLines[currentInputLine], allocatedElement.Elem(), timeLocation, isHeader); err != nil {
+					if err = reflectAnnotatedFields(bufferedInputLines[currentInputLine], allocatedElement.Elem(), timeLocation, isHeader, repeatDelimiter, componentDelimiter, escapeDelimiter); err != nil {
 						return currentInputLine, ERROR, errors.New(fmt.Sprintf("Failed to process input line '%s' err:%s", bufferedInputLines[currentInputLine], err))
 					}
 
@@ -205,7 +246,7 @@ func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLi
 				}
 
 			} else { // The "normal" case: scanning a string into a structure :
-				if err = reflectAnnotatedFields(bufferedInputLines[currentInputLine], currentRecord, timeLocation, isHeader); err != nil {
+				if err = reflectAnnotatedFields(bufferedInputLines[currentInputLine], currentRecord, timeLocation, isHeader, repeatDelimiter, componentDelimiter, escapeDelimiter); err != nil {
 					return currentInputLine, ERROR, errors.New(fmt.Sprintf("Failed to process input line '%s' err:%s", bufferedInputLines[currentInputLine], err))
 				}
 				currentInputLine = currentInputLine + 1
@@ -227,13 +268,14 @@ func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLi
 	return currentInputLine, OK, nil
 }
 
-func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *time.Location, isHeader bool) error {
+func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *time.Location, isHeader bool,
+	repeatDelimiter, componentDelimiter, escapeDelimiter *string) error {
 
 	if reflect.ValueOf(record).Type().Kind() != reflect.Struct {
 		return errors.New(fmt.Sprintf("invalid type of target: '%s', expecting 'struct'", reflect.ValueOf(record).Type().Kind()))
 	}
 
-	inputFields := strings.Split(inputStr, FieldDelimiter)
+	inputFields := strings.Split(inputStr, "|")
 	if len(inputFields) < 1 {
 		return errors.New("Input contains no data")
 	}
@@ -273,7 +315,7 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 
 		switch reflect.TypeOf(recordfield.Interface()).Name() {
 		case "string":
-			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component); err == nil {
+			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
 
 				// in headers there can be special characters, that is why the value needs to disregard the delimiters:
 				if isHeader {
@@ -284,13 +326,13 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 
 				if hasOverrideDelimiterAnnotation { // the first three characters become the new delimiters
 					if len(value) >= 1 {
-						RepeatDelimiter = value[0:1]
+						*repeatDelimiter = value[0:1]
 					}
 					if len(value) >= 2 {
-						ComponentDelimiter = value[1:2]
+						*componentDelimiter = value[1:2]
 					}
 					if len(value) >= 3 {
-						EscapeDelimiter = value[2:3]
+						*escapeDelimiter = value[2:3]
 					}
 				}
 			} else {
@@ -304,7 +346,7 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				return errors.New("delimiter-annotation is only allowed for string-type, not int.")
 			}
 
-			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component); err == nil {
+			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
 
 				if num, err := strconv.Atoi(value); err == nil {
 					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(num))
@@ -322,7 +364,7 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				return errors.New("delimiter-annotation is only allowed for string-type, not int.")
 			}
 
-			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component); err == nil {
+			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
 
 				if num, err := strconv.ParseFloat(value, 32); err == nil {
 					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(float32(num)))
@@ -340,7 +382,7 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				return errors.New("delimiter-annotation is only allowed for string-type, not int.")
 			}
 
-			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component); err == nil {
+			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
 
 				if num, err := strconv.ParseFloat(value, 64); err == nil {
 					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(float64(num)))
@@ -354,22 +396,6 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				return err
 			}
 
-			/*
-				TODO: this annotation got removed because it doesnt help to have open arrays
-				case "slice":
-				 instr := fields[mapFieldNo]
-				list := splitAny(instr, RepeatDelimiter) //CHANGEHERE
-				field.Set(reflect.ValueOf(list))
-				/*	case [][]string:
-					fieldFromFile := fields[mapFieldNo]
-					// the amount of repeat-separators is the first dimension, then each repeats the patters
-					arry := make([][]string, 0)
-					sequences := strings.Split(fieldFromFile, "\\")
-					for _, sequence := range sequences {
-						data := strings.Split(sequence, "^")
-						arry = append(arry, data)
-					}
-					field.Set(reflect.ValueOf(arry)) */
 		case "Time":
 			if hasOverrideDelimiterAnnotation {
 				return errors.New("delimiter-annotation is only allowed for string-type, not Time")
@@ -441,20 +467,20 @@ func readFieldAddressAnnotation(annotation string) (field int, repeat int, compo
 
 // input is an unpacked field from an astm-file free of the field delimiter ("|")
 // this function ettracts the field by repeat and component-delimiter
-func extractAstmFieldByRepeatAndComponent(text string, repeat int, component int) (string, error) {
+func extractAstmFieldByRepeatAndComponent(text string, repeat int, component int, repeatDelimiter, componentDelimiter string) (string, error) {
 
-	subfield := strings.Split(text, RepeatDelimiter)
+	subfield := strings.Split(text, repeatDelimiter)
 	if repeat >= len(subfield) {
-		return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s', delimiter '%s'", repeat, component, text, RepeatDelimiter))
+		return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s', delimiter '%s'", repeat, component, text, repeatDelimiter))
 	}
 
-	subsubfield := strings.Split(subfield[repeat], ComponentDelimiter)
+	subsubfield := strings.Split(subfield[repeat], componentDelimiter)
 	if component > len(subsubfield) || component < 0 {
-		return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s' delimiter '%s'", repeat, component, text, ComponentDelimiter))
+		return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s' delimiter '%s'", repeat, component, text, componentDelimiter))
 	}
 
 	if component >= len(subsubfield) {
-		return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s', delimiter '%s'", repeat, component, text, RepeatDelimiter))
+		return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s', delimiter '%s'", repeat, component, text, repeatDelimiter))
 	}
 
 	return subsubfield[component], nil

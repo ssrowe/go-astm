@@ -188,3 +188,80 @@ func TestCustomRecord(t *testing.T) {
 // test optionals ok
 // test encoding
 // line ending 0a or 0d or 0d0a all okay ? ok
+
+type SubMessageRecord struct {
+	Field11 string `astm:"2.1.1"`
+	Field12 string `astm:"2.1.2"`
+	Field13 string `astm:"2.1.3"`
+	Field21 string `astm:"2.2.1"`
+	Field22 string `astm:"2.2.2"`
+	Field23 string `astm:"2.2.3"`
+}
+
+type MessageWithSubArrayRecord struct {
+	Anonymous struct { // Testing wether this annoynmous structure is recused into
+		Rec SubMessageRecord `astm:"?"`
+	}
+
+	AnonymousArray []struct { // This anynymous array of structures needs to be created and scanned
+		Rec SubMessageRecord `astm:"!"`
+	}
+}
+
+func TestArrayMapping(t *testing.T) {
+
+	data := "?|a^^c\\d^e^f|\r"
+	data = data + "!|x^y\\z^^|\r"
+	data = data + "!|1^2^3\\4^5^6|\r"
+
+	var message MessageWithSubArrayRecord
+	err := lis2a2.Unmarshal([]byte(data), &message,
+		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
+
+	assert.Nil(t, err)
+
+	assert.Equal(t, "a", message.Anonymous.Rec.Field11)
+	assert.Equal(t, "c", message.Anonymous.Rec.Field13)
+
+	assert.Equal(t, "d", message.Anonymous.Rec.Field21)
+	assert.Equal(t, "e", message.Anonymous.Rec.Field22)
+	assert.Equal(t, "f", message.Anonymous.Rec.Field23)
+
+	// now test that the subarray values have been read
+	assert.Equal(t, 2, len(message.AnonymousArray))
+	assert.Equal(t, "x", message.AnonymousArray[0].Rec.Field11)
+	assert.Equal(t, "y", message.AnonymousArray[0].Rec.Field12)
+	assert.Equal(t, "z", message.AnonymousArray[0].Rec.Field21)
+	assert.Equal(t, "", message.AnonymousArray[0].Rec.Field22)
+
+	assert.Equal(t, "1", message.AnonymousArray[1].Rec.Field11)
+	assert.Equal(t, "2", message.AnonymousArray[1].Rec.Field12)
+	assert.Equal(t, "4", message.AnonymousArray[1].Rec.Field21)
+	assert.Equal(t, "5", message.AnonymousArray[1].Rec.Field22)
+}
+
+type SomeEnum string
+
+const (
+	EnumValue1 SomeEnum = "EnumValue1"
+	EnumValue2 SomeEnum = "EnumValue2"
+)
+
+type SomeEnumRecord struct {
+	Value SomeEnum `astm:"2"`
+}
+
+type TestUnmarshalEnumMessage struct {
+	Record SomeEnumRecord `astm:"E"`
+}
+
+// TODO enum value
+func TestEnumEncoding(t *testing.T) {
+	data := "E|EnumValue1|\r"
+
+	var message TestUnmarshalEnumMessage
+	err := lis2a2.Unmarshal([]byte(data), &message,
+		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
+
+	assert.Nil(t, err)
+}
