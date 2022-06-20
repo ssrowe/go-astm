@@ -131,3 +131,34 @@ func TestNestedStruct(t *testing.T) {
 	assert.Equal(t, string(lines[5]), "R|1|^^^^Fungenes^^|^^present|none|||||^||")
 	assert.Equal(t, string(lines[6]), "L|1||")
 }
+
+type TestMarshalEnum string
+
+const (
+	SomeTestMarshalEnum1 TestMarshalEnum = "Something"
+	SomeTestMarshalEnum2 TestMarshalEnum = "SomethingElse"
+)
+
+type TestMarshalEnumRecord struct {
+	Field TestMarshalEnum
+}
+
+type TestMarshalEnumMessage struct {
+	Record TestMarshalEnumRecord `astm:"X"`
+}
+
+func TestEnumMarshal(t *testing.T) {
+	var msg TestMarshalEnumMessage
+
+	msg.Record.Field = SomeTestMarshalEnum2
+
+	lines, err := lis2a2.Marshal(msg, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.ShortNotation)
+
+	assert.Nil(t, err)
+	// output on screen
+	for _, line := range lines {
+		linestr := string(line)
+		fmt.Println(linestr)
+	}
+
+}
