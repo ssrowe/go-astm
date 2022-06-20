@@ -122,8 +122,8 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 
 		//fmt.Printf("Decode %+v to %d.%d.%d for %s\n", fieldAstmTagsList, fieldIdx, repeatIdx, componentIdx, field.String())
 
-		switch field.Type().Name() {
-		case "string":
+		switch field.Type().Kind() {
+		case reflect.String:
 			value := ""
 
 			if sliceContainsString(fieldAstmTagsList, ANNOTATION_SEQUENCE) {
@@ -138,7 +138,7 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 			}
 
 			fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
-		case "int":
+		case reflect.Int:
 			value := fmt.Sprintf("%d", field.Int())
 			if sliceContainsString(fieldAstmTagsList, ANNOTATION_SEQUENCE) {
 				value = fmt.Sprintf("%d", generatedSequenceNumber)
@@ -146,11 +146,19 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 			}
 
 			fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
-		case "float32":
-		case "float64":
-		case "Time":
-			//t := time.Time(field.Interface())
-			//fmt.Println("Time = ", t)
+		case reflect.Float32:
+		case reflect.Float64:
+			//TODO: add annotation for decimal length
+			value := fmt.Sprintf("%.3f", field.Float())
+			fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
+		case reflect.Struct:
+			switch field.Type().Name() {
+			case "Time":
+				//t := time.Time(field.Interface())
+				//fmt.Println("Time = ", t)
+			default:
+				return "", errors.New(fmt.Sprintf("Invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name()))
+			}
 		default:
 			return "", errors.New(fmt.Sprintf("Invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name()))
 		}

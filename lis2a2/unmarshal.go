@@ -313,8 +313,8 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 			continue // mapped field is beyond the data
 		}
 
-		switch reflect.TypeOf(recordfield.Interface()).Name() {
-		case "string":
+		switch reflect.TypeOf(recordfield.Interface()).Kind() {
+		case reflect.String:
 			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
 
 				// in headers there can be special characters, that is why the value needs to disregard the delimiters:
@@ -322,7 +322,7 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 					value = inputFields[currentInputFieldNo]
 				}
 
-				reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(value))
+				reflect.ValueOf(recordFieldInterface).Elem().SetString(reflect.ValueOf(value).String())
 
 				if hasOverrideDelimiterAnnotation { // the first three characters become the new delimiters
 					if len(value) >= 1 {
@@ -341,7 +341,7 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 						currentInputFieldNo+1, repeat+1, component+1, inputStr, err))
 				}
 			}
-		case "int":
+		case reflect.Int:
 			if hasOverrideDelimiterAnnotation {
 				return errors.New("delimiter-annotation is only allowed for string-type, not int.")
 			}
@@ -359,7 +359,7 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 			} else {
 				return err
 			}
-		case "float32":
+		case reflect.Float32:
 			if hasOverrideDelimiterAnnotation {
 				return errors.New("delimiter-annotation is only allowed for string-type, not int.")
 			}
@@ -377,7 +377,7 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 			} else {
 				return err
 			}
-		case "float64":
+		case reflect.Float64:
 			if hasOverrideDelimiterAnnotation {
 				return errors.New("delimiter-annotation is only allowed for string-type, not int.")
 			}
@@ -396,31 +396,37 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				return err
 			}
 
-		case "Time":
-			if hasOverrideDelimiterAnnotation {
-				return errors.New("delimiter-annotation is only allowed for string-type, not Time")
-			}
-			inputFieldValue := inputFields[currentInputFieldNo]
-			if inputFieldValue == "" {
-				reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(time.Time{}))
-			} else if len(inputFieldValue) == 8 { // YYYYMMDD See Section 5.6.2 https://samson-rus.com/wp-content/files/LIS2-A2.pdf
-				timeInLocation, err := time.ParseInLocation("20060102", inputFieldValue, timezone)
-				if err != nil {
-					return errors.New(fmt.Sprintf("Invalid time format <%s>", inputFieldValue))
+		case reflect.Struct:
+			switch reflect.TypeOf(recordfield.Interface()).Name() {
+			case "Time":
+				if hasOverrideDelimiterAnnotation {
+					return errors.New("delimiter-annotation is only allowed for string-type, not Time")
 				}
-				reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(timeInLocation))
+				inputFieldValue := inputFields[currentInputFieldNo]
+				if inputFieldValue == "" {
+					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(time.Time{}))
+				} else if len(inputFieldValue) == 8 { // YYYYMMDD See Section 5.6.2 https://samson-rus.com/wp-content/files/LIS2-A2.pdf
+					timeInLocation, err := time.ParseInLocation("20060102", inputFieldValue, timezone)
+					if err != nil {
+						return errors.New(fmt.Sprintf("Invalid time format <%s>", inputFieldValue))
+					}
+					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(timeInLocation))
 
-			} else if len(inputFieldValue) == 14 { // YYYYMMDDHHMMSS
-				timeInLocation, err := time.ParseInLocation("20060102150405", inputFieldValue, timezone)
-				if err != nil {
-					return errors.New(fmt.Sprintf("Invalid time format <%s>", inputFieldValue))
+				} else if len(inputFieldValue) == 14 { // YYYYMMDDHHMMSS
+					timeInLocation, err := time.ParseInLocation("20060102150405", inputFieldValue, timezone)
+					if err != nil {
+						return errors.New(fmt.Sprintf("Invalid time format <%s>", inputFieldValue))
+					}
+					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(timeInLocation.UTC()))
+				} else {
+					return errors.New(fmt.Sprintf("Unrecognized time format <%s>", inputFieldValue))
 				}
-				reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(timeInLocation.UTC()))
-			} else {
-				return errors.New(fmt.Sprintf("Unrecognized time format <%s>", inputFieldValue))
+			default:
+				return errors.New(fmt.Sprintf("Invalid type of Field '%s' while trying to unmarshal this string '%s'. This datatype is a structure type which is not implemented.",
+					reflect.TypeOf(recordfield.Interface()).Name(), inputStr))
 			}
 		default:
-			return errors.New(fmt.Sprintf("Invalid field-Type '%s' for mapping (not implemented): '%s'",
+			return errors.New(fmt.Sprintf("Invalid type of Field '%s' while trying to unmarshal this string '%s'. This datatype is not implemented.",
 				reflect.TypeOf(recordfield.Interface()).Kind(), inputStr))
 		}
 	}
