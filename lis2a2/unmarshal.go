@@ -93,11 +93,6 @@ const (
 	OK         RETV = 1
 	UNEXPECTED RETV = 2 // an exit that wont abort processing. used for skipping optional records
 	ERROR      RETV = 3 // a definite error that stops the process
-
-	ANNOTATION_DELIMITER = "delimiter" // annotation that triggers the delimiters in the scanner to be reset
-	ANNOTATION_REQUIRED  = "require"   // field-annotation: by default all fields are optinal
-	ANNOTATION_OPTIONAL  = "optional"  // record-annotation: by default all records are mandatory
-	ANNOTATION_SEQUENCE  = "sequence"  // indicating that a sequence number should be generated (output only)
 )
 
 /* This function takes a string and a struct and matches the annotated fields to the string-input */
