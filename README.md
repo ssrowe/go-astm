@@ -116,31 +116,47 @@ type MessagePORC struct {
 
 ## Custom Record Structure
 
-### Annotations
+### Addressing fields 
 Often the default is not enough. You can customize any record with annotation. 
 
-Fields are adressed by their Field # :
+#### ... by Field#
 ``` go
    ...
    Filed string `astm:"3"`  // Select 3rd field, start counting with 1
    ...
 ```
+Example:
+``` text
+	X|field2|field3|field4|		Result: "field3"
+	X|field2^1^2|field3^1^2|field4^5^6|		Result: "field3"	
+	X|field2^1^2|field3_1^1_1^2_!\\field3_2^5_2^2_2|field4^6^2|		Result: "field3_1"
+```
 
-by Field.Component#
+#### ... by Field#.Component#
 ``` go
    ...
    Filed string `astm:"3.2"`  // Select 3rd field, 2nd component, start counting with 1
    ...
 ```
-
-by Field.Repeat.Component#
+Example:
+``` text
+	X|field2|field3|field4|		Result: ""	
+	X|field2^1^2|field3^1^2|field4^5^6|		Result: "1"	
+	X|field2^1^2|field3_1^1_1^2_!\\field3_2^1_2^2_2|field4^1^2|		Result: "1_1"
+```
+#### ... by Field#.Repeat#.Component#
 ``` go
    ...
    Filed string `astm:"3.2.2"`  // Select 3rd field, 2nd array index, 2nd component, start counting with 1
    ...
 ```
-
-### Example Custom structure
+Example:
+``` text
+	X|field2|field3|field4|		Result: ""	
+	X|field2^1^2|field3^1^2|field4^5^6|		Result: ""	
+	X|field2^1^2|field3_1^1_1^2_!\\field3_2^1_2^2_2|field4^1^2|		Result: "1_2"
+```
+### Custom Record Format
 ``` go
 type Result struct {
 	SequenceNumber                           int       `astm:"2,sequence"`   // sequence generates numbers when value is 0 
