@@ -264,4 +264,6 @@ func TestEnumEncoding(t *testing.T) {
 		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
 
 	assert.Nil(t, err)
+
+	assert.Equal(t, EnumValue1, message.Record.Value)
 }
