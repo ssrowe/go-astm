@@ -172,18 +172,22 @@ type Manufacturer struct {
 	F13            string `astm:"14"`         // 14.14
 }
 
+type CommentedResult struct {
+	Result  Result    `astm:"R"`
+	Comment []Comment `astm:"C,optional"`
+}
+
+type PORC struct {
+	Patient         Patient   `astm:"P"`
+	Comment         []Comment `astm:"C,optional"`
+	Order           Order     `astm:"O"`
+	CommentedResult []CommentedResult
+}
+
 // https://samson-rus.com/wp-content/files/LIS2-A2.pdf Page 30 : Logial Structure of Message
 type DefaultMessage struct {
 	Header       Header       `astm:"H"`
 	Manufacturer Manufacturer `astm:"M,optional"`
-	OrderResults []struct {
-		Patient         Patient   `astm:"P"`
-		Comment         []Comment `astm:"C,optional"`
-		Order           Order     `astm:"O"`
-		CommentedResult []struct {
-			Result  Result    `astm:"R"`
-			Comment []Comment `astm:"C,optional"`
-		}
-	}
-	Terminator Terminator `astm:"L"`
+	OrderResults []PORC
+	Terminator   Terminator `astm:"L"`
 }

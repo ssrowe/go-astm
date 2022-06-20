@@ -3,6 +3,7 @@ package e2e
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/DRK-Blutspende-BaWueHe/go-astm/lib/standardlis2a2"
 	"github.com/DRK-Blutspende-BaWueHe/go-astm/lis2a2"
@@ -38,16 +39,16 @@ func TestSimpleMarshal(t *testing.T) {
 
 	lines, err := lis2a2.Marshal(msg, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.ShortNotation)
 
-	/*	// output on screen
-		for _, line := range lines {
-			linestr := string(line)
-			fmt.Println(linestr)
-			} */
+	for _, line := range lines {
+		linestr := string(line)
+		fmt.Println(linestr)
+	}
+
 	assert.Nil(t, err)
 
-	assert.Equal(t, string(lines[0]), "H|\\^&||password|test||||||||0.1.0|")
-	assert.Equal(t, string(lines[1]), "?|1|first-arr1^^third-arr1\\first-arr2^second-arr2||")
-	assert.Equal(t, string(lines[2]), "L|1||")
+	assert.Equal(t, "H|\\^&||password|test||||||||0.1.0|", string(lines[0]))
+	assert.Equal(t, "?|1|first-arr1^^third-arr1\\first-arr2^second-arr2||", string(lines[1]))
+	assert.Equal(t, "L|1||", string(lines[2]))
 }
 
 type ArrayMessageMarshal struct {
@@ -75,10 +76,10 @@ func TestGenverateSequence(t *testing.T) {
 		fmt.Println(linestr)
 	}
 
-	assert.Equal(t, string(lines[0]), "H|\\^&||||||||||||")
-	assert.Equal(t, string(lines[1]), "P|1||||Firstus'^Firstie|||||||||||||||||||||||||||||")
-	assert.Equal(t, string(lines[2]), "P|2||||Secundus'^Secundie|||||||||||||||||||||||||||||")
-	assert.Equal(t, string(lines[3]), "L|1||")
+	assert.Equal(t, "H|\\^&||||||||||||", string(lines[0]))
+	assert.Equal(t, "P|1||||Firstus'^Firstie|||||||||||||||||||||||||||||", string(lines[1]))
+	assert.Equal(t, "P|2||||Secundus'^Secundie|||||||||||||||||||||||||||||", string(lines[2]))
+	assert.Equal(t, "L|1||", string(lines[3]))
 }
 
 type PatientResult struct {
@@ -123,11 +124,67 @@ func TestNestedStruct(t *testing.T) {
 		fmt.Println(linestr)
 	}
 
-	assert.Equal(t, string(lines[0]), "H|\\^&||||||||||||")
-	assert.Equal(t, string(lines[1]), "P|1||||Norris^Chuck||||||||||||||||||||||Binaries|||||||")
-	assert.Equal(t, string(lines[2]), "R|1|^^^^SulfurBloodCount^^|^^100|%|||||^||")
-	assert.Equal(t, string(lines[3]), "R|2|^^^^Catblood^^|^^>100000|U/l|||||^||")
-	assert.Equal(t, string(lines[4]), "P|1||||Cartman^Eric||||||||||||||||||||||None|||||||")
-	assert.Equal(t, string(lines[5]), "R|1|^^^^Fungenes^^|^^present|none|||||^||")
-	assert.Equal(t, string(lines[6]), "L|1||")
+	assert.Equal(t, "H|\\^&||||||||||||", string(lines[0]))
+	assert.Equal(t, "P|1||||Norris^Chuck||||||||||||||||||||||Binaries|||||||", string(lines[1]))
+	assert.Equal(t, "R|1|^^^^SulfurBloodCount^^|^^100|%|||||^||", string(lines[2]))
+	assert.Equal(t, "R|2|^^^^Catblood^^|^^>100000|U/l|||||^||", string(lines[3]))
+	assert.Equal(t, "P|1||||Cartman^Eric||||||||||||||||||||||None|||||||", string(lines[4]))
+	assert.Equal(t, "R|1|^^^^Fungenes^^|^^present|none|||||^||", string(lines[5]))
+	assert.Equal(t, "L|1||", string(lines[6]))
+}
+
+type TimeTestMessageMarshal struct {
+	Header standardlis2a2.Header `astm:"H"`
+}
+
+/*
+	Test provides current time as UTC and expects the converter to stream as Belrin-Time
+*/
+func TestTimeLocalization(t *testing.T) {
+
+	var msg TimeTestMessageMarshal
+
+	europeBerlin, err := time.LoadLocation("Europe/Berlin")
+	assert.Nil(t, err)
+
+	testTime := time.Now()
+	timeInBerlin := time.Now().In(europeBerlin)
+
+	msg.Header.DateAndTime = testTime.UTC()
+
+	lines, err := lis2a2.Marshal(msg, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.ShortNotation)
+	assert.Nil(t, err)
+
+	assert.Equal(t, fmt.Sprintf("H|\\^&||||||||||||%s|", timeInBerlin.Format("20060102150405")), string(lines[0]))
+}
+
+type TestMarshalEnum string
+
+const (
+	SomeTestMarshalEnum1 TestMarshalEnum = "Something"
+	SomeTestMarshalEnum2 TestMarshalEnum = "SomethingElse"
+)
+
+type TestMarshalEnumRecord struct {
+	Field TestMarshalEnum
+}
+
+type TestMarshalEnumMessage struct {
+	Record TestMarshalEnumRecord `astm:"X"`
+}
+
+func TestEnumMarshal(t *testing.T) {
+	var msg TestMarshalEnumMessage
+
+	msg.Record.Field = SomeTestMarshalEnum2
+
+	lines, err := lis2a2.Marshal(msg, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.ShortNotation)
+
+	assert.Nil(t, err)
+	// output on screen
+	for _, line := range lines {
+		linestr := string(line)
+		fmt.Println(linestr)
+	}
+
 }
