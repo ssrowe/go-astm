@@ -157,3 +157,34 @@ func TestTimeLocalization(t *testing.T) {
 
 	assert.Equal(t, fmt.Sprintf("H|\\^&||||||||||||%s|", timeInBerlin.Format("20060102150405")), string(lines[0]))
 }
+
+type TestMarshalEnum string
+
+const (
+	SomeTestMarshalEnum1 TestMarshalEnum = "Something"
+	SomeTestMarshalEnum2 TestMarshalEnum = "SomethingElse"
+)
+
+type TestMarshalEnumRecord struct {
+	Field TestMarshalEnum
+}
+
+type TestMarshalEnumMessage struct {
+	Record TestMarshalEnumRecord `astm:"X"`
+}
+
+func TestEnumMarshal(t *testing.T) {
+	var msg TestMarshalEnumMessage
+
+	msg.Record.Field = SomeTestMarshalEnum2
+
+	lines, err := lis2a2.Marshal(msg, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.ShortNotation)
+
+	assert.Nil(t, err)
+	// output on screen
+	for _, line := range lines {
+		linestr := string(line)
+		fmt.Println(linestr)
+	}
+
+}
