@@ -267,3 +267,71 @@ func TestEnumEncoding(t *testing.T) {
 
 	assert.Equal(t, EnumValue1, message.Record.Value)
 }
+
+//-----------------------------------------------------------------------------------
+// TEST
+//-----------------------------------------------------------------------------------
+// Access time.Time in a struct with multiple components
+//  aside:    also testing time.time values
+//-----------------------------------------------------------------------------------
+type AccessTimeComment struct {
+	SequenceNumber              int       `astm:"2,sequence" db:"sequence_number"`            // 3.2.8 - ih_com_host_connection_manual_astm_1394_en_h009164_v1_8.pdf
+	DescriptionOfReagent        string    `astm:"3.1.1"  db:"description_of_reagent"`         //
+	BarcodeOfReagent            string    `astm:"3.1.2" db:"barcode_of_reagent"`              //
+	LotNumberOfReagent          string    `astm:"3.1.3" db:"lot_number_of_reagent"`           //
+	ExpirationDateOfReagent     time.Time `astm:"3.1.4" db:"expiration_date_of_reagent"`      //
+	DescriptionOfReagent2       string    `astm:"3.2.1" db:"description_of_reagent_2"`        //
+	BarcodeOfReagent2           string    `astm:"3.2.2" db:"barcode_of_reagent_2"`            //
+	LotNumberOfReagent2         string    `astm:"3.2.3" db:"lot_number_of_reagent_2"`         //
+	ExpirationDateOfReagent2    time.Time `astm:"3.2.4" db:"expiration_date_of_reagent_2"`    //
+	TypeOfTestMedia             string    `astm:"4.1" db:"type_of_test_media"`                //
+	PlateOrIDCardBarcode        string    `astm:"4.2" db:"plate_or_id_card_barcode"`          //
+	LotNumberOfCassetteOrPlate  string    `astm:"4.3" db:"lot_number_of_cassette_or_plate"`   //
+	ExpDateForIDCardOrPlate     time.Time `astm:"4.4" db:"exp_date_for_id_card_or_plate"`     //
+	IDCardOrPlateRealWellNumber int       `astm:"4.5" db:"id_card_or_plate_real_well_number"` //
+	Comment                     string    `astm:"5" db:"comment"`                             //
+	FileName                    string    `astm:"6" db:"file_name"`                           //
+}
+type MessageTimeAccess struct {
+	Header       standardlis2a2.Header       `astm:"H"`
+	Manufacturer standardlis2a2.Manufacturer `astm:"M,optional"`
+	OrderResults []struct {
+		Patient         standardlis2a2.Patient `astm:"P"`
+		Order           standardlis2a2.Order   `astm:"O"`
+		CommentedResult []struct {
+			Result  standardlis2a2.Result `astm:"R"`
+			Comment []AccessTimeComment   `astm:"C,optional"`
+		}
+	}
+	Terminator standardlis2a2.Terminator `astm:"L"`
+}
+
+func TestComponentAccessOnTime(t *testing.T) {
+	data := ""
+	data = data + "H|\\^&|||Bio-Rad|IH v5.2||||||||20220315194227\r"
+	data = data + "P|1||1010868845||Testus^Test||19400607|M||||||||||||||||||||||||^\r"
+	data = data + "O|1|1122206642|1122206642^^^\\1122206642^^^|^^^MO10^^28343^|R|20220311103217|20220311103217|||||||||||11||||20220311114103|||P\r"
+	data = data + "R|1|^^^AntiA^MO10^Bloodgroup: A,B,D Confirmation for Patients (DiaClon) (5005)^|40^^|C||||R||lalina^|20220311114103||11|IH-1000|0300768|lalina\r"
+	data = data + "C|1|FirstComment^^05761.03.12^20240131\\^^^|CAS^5005352062212117030^50053.52.06^20221231^4||\r"
+	data = data + "C|2|SecondComment^^05761.03.12^20240131\\^^^|CAS^5005352062212117030^50053.52.06^20221231^4||\r"
+	data = data + "R|2|^^^AntiB^MO10^Bloodgroup: A,B,D Confirmation for Patients (DiaClon) (5005)^|0^^|C||||R||lalina^|20220311114103||11|IH-1000|0300768|lalina\r"
+	data = data + "C|1|ID-Diluent 2^^05761.03.12^20240131\\^^^|CAS^5005352062212117030^50053.52.06^20221231^5||\r"
+	data = data + "R|3|^^^AntiD^MO10^Bloodgroup: A,B,D Confirmation for Patients (DiaClon) (5005)^|0^^|C||||R||lalina^|20220311114103||11|IH-1000|0300768|lalina\r"
+	data = data + "P|2||1010868845||Testis^Tost||19400607|M||||||||||||||||||||||||^\r"
+	data = data + "O|1|1122206642|1122206642^^^\\1122206642^^^|^^^MO10^^28343^|R|20220311103217|20220311103217|||||||||||11||||20220311114103|||P\r"
+	data = data + "R|1|^^^AntiA^MO10^Bloodgroup: A,B,D Confirmation for Patients (DiaClon) (5005)^|40^^|C||||R||lalina^|20220311114103||11|IH-1000|0300768|lalina\r"
+	data = data + "L|1|N\r"
+
+	var message MessageTimeAccess
+	err := lis2a2.Unmarshal([]byte(data), &message,
+		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
+
+	assert.Nil(t, err)
+
+	location, err := time.LoadLocation(string(lis2a2.TimezoneEuropeBerlin))
+	assert.Nil(t, err, "Can not parse timezone")
+
+	expDate, err := time.ParseInLocation("20060102", "20240131", location)
+	assert.Nil(t, err, "Can not parse date")
+	assert.Equal(t, expDate, message.OrderResults[0].CommentedResult[0].Comment[0].ExpirationDateOfReagent)
+}
