@@ -45,7 +45,6 @@ type PORC struct {
 	CommentedResult []CommentedResult
 }
 
-// https://samson-rus.com/wp-content/files/LIS2-A2.pdf Page 30 : Logial Structure of Message
 type DefaultMessage struct {
 	Header       Header       `astm:"H"`
 	Manufacturer Manufacturer `astm:"M,optional"`
