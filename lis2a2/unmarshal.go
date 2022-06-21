@@ -310,7 +310,8 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 
 		switch reflect.TypeOf(recordfield.Interface()).Kind() {
 		case reflect.String:
-			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
+			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo],
+				repeat, component, *repeatDelimiter, *componentDelimiter, sliceContainsString(astmTagsList, ANNOTATION_REQUIRED)); err == nil {
 
 				// in headers there can be special characters, that is why the value needs to disregard the delimiters:
 				if isHeader {
@@ -341,7 +342,8 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				return errors.New("delimiter-annotation is only allowed for string-type, not int.")
 			}
 
-			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
+			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component,
+				*repeatDelimiter, *componentDelimiter, sliceContainsString(astmTagsList, ANNOTATION_REQUIRED)); err == nil {
 
 				if num, err := strconv.Atoi(value); err == nil {
 					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(num))
@@ -359,7 +361,9 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				return errors.New("delimiter-annotation is only allowed for string-type, not int.")
 			}
 
-			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
+			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo],
+				repeat, component, *repeatDelimiter, *componentDelimiter,
+				sliceContainsString(astmTagsList, ANNOTATION_REQUIRED)); err == nil {
 
 				if num, err := strconv.ParseFloat(value, 32); err == nil {
 					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(float32(num)))
@@ -377,7 +381,9 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				return errors.New("delimiter-annotation is only allowed for string-type, not int.")
 			}
 
-			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
+			if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo],
+				repeat, component, *repeatDelimiter, *componentDelimiter,
+				sliceContainsString(astmTagsList, ANNOTATION_REQUIRED)); err == nil {
 
 				if num, err := strconv.ParseFloat(value, 64); err == nil {
 					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(float64(num)))
@@ -399,10 +405,12 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				}
 
 				var inputFieldValue string
-				if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
+				if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo],
+					repeat, component, *repeatDelimiter, *componentDelimiter,
+					sliceContainsString(astmTagsList, ANNOTATION_REQUIRED)); err == nil {
 					inputFieldValue = value
 				} else {
-					inputFieldValue = inputFields[currentInputFieldNo]
+					return errors.New(fmt.Sprintf("Error extracting field '%s' tagged: '%s' : %s ", recordfield.Type().Name(), astmTag, err))
 				}
 
 				if inputFieldValue == "" {
@@ -475,20 +483,22 @@ func readFieldAddressAnnotation(annotation string) (field int, repeat int, compo
 
 // input is an unpacked field from an astm-file free of the field delimiter ("|")
 // this function ettracts the field by repeat and component-delimiter
-func extractAstmFieldByRepeatAndComponent(text string, repeat int, component int, repeatDelimiter, componentDelimiter string) (string, error) {
+func extractAstmFieldByRepeatAndComponent(text string, repeat int, component int, repeatDelimiter, componentDelimiter string, isRequired bool) (string, error) {
 
 	subfield := strings.Split(text, repeatDelimiter)
 	if repeat >= len(subfield) {
-		return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s', delimiter '%s'", repeat, component, text, repeatDelimiter))
+		if isRequired {
+			return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s', delimiter '%s'", repeat, component, text, repeatDelimiter))
+		}
+		return "", nil
 	}
 
 	subsubfield := strings.Split(subfield[repeat], componentDelimiter)
-	if component > len(subsubfield) || component < 0 {
-		return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s' delimiter '%s'", repeat, component, text, componentDelimiter))
-	}
-
-	if component >= len(subsubfield) {
-		return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s', delimiter '%s'", repeat, component, text, repeatDelimiter))
+	if component >= len(subsubfield) || component < 0 {
+		if isRequired {
+			return "", errors.New(fmt.Sprintf("Index (%d, %d) out of bounds '%s' delimiter '%s'", repeat, component, text, componentDelimiter))
+		}
+		return "", nil
 	}
 
 	return subsubfield[component], nil
