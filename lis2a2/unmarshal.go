@@ -397,7 +397,14 @@ func reflectAnnotatedFields(inputStr string, record reflect.Value, timezone *tim
 				if hasOverrideDelimiterAnnotation {
 					return errors.New("delimiter-annotation is only allowed for string-type, not Time")
 				}
-				inputFieldValue := inputFields[currentInputFieldNo]
+
+				var inputFieldValue string
+				if value, err := extractAstmFieldByRepeatAndComponent(inputFields[currentInputFieldNo], repeat, component, *repeatDelimiter, *componentDelimiter); err == nil {
+					inputFieldValue = value
+				} else {
+					inputFieldValue = inputFields[currentInputFieldNo]
+				}
+
 				if inputFieldValue == "" {
 					reflect.ValueOf(recordFieldInterface).Elem().Set(reflect.ValueOf(time.Time{}))
 				} else if len(inputFieldValue) == 8 { // YYYYMMDD See Section 5.6.2 https://samson-rus.com/wp-content/files/LIS2-A2.pdf
