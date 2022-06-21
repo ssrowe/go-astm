@@ -293,33 +293,15 @@ type AccessTimeComment struct {
 	FileName                    string    `astm:"6" db:"file_name"`                           //
 }
 type MessageTimeAccess struct {
-	Header       standardlis2a2.Header       `astm:"H"`
-	Manufacturer standardlis2a2.Manufacturer `astm:"M,optional"`
-	OrderResults []struct {
-		Patient         standardlis2a2.Patient `astm:"P"`
-		Order           standardlis2a2.Order   `astm:"O"`
-		CommentedResult []struct {
-			Result  standardlis2a2.Result `astm:"R"`
-			Comment []AccessTimeComment   `astm:"C,optional"`
-		}
-	}
+	Header     standardlis2a2.Header     `astm:"H"`
+	Comment    AccessTimeComment         `astm:"C"`
 	Terminator standardlis2a2.Terminator `astm:"L"`
 }
 
 func TestComponentAccessOnTime(t *testing.T) {
 	data := ""
 	data = data + "H|\\^&|||Bio-Rad|IH v5.2||||||||20220315194227\r"
-	data = data + "P|1||1010868845||Testus^Test||19400607|M||||||||||||||||||||||||^\r"
-	data = data + "O|1|1122206642|1122206642^^^\\1122206642^^^|^^^MO10^^28343^|R|20220311103217|20220311103217|||||||||||11||||20220311114103|||P\r"
-	data = data + "R|1|^^^AntiA^MO10^Bloodgroup: A,B,D Confirmation for Patients (DiaClon) (5005)^|40^^|C||||R||lalina^|20220311114103||11|IH-1000|0300768|lalina\r"
 	data = data + "C|1|FirstComment^^05761.03.12^20240131\\^^^|CAS^5005352062212117030^50053.52.06^20221231^4||\r"
-	data = data + "C|2|SecondComment^^05761.03.12^20240131\\^^^|CAS^5005352062212117030^50053.52.06^20221231^4||\r"
-	data = data + "R|2|^^^AntiB^MO10^Bloodgroup: A,B,D Confirmation for Patients (DiaClon) (5005)^|0^^|C||||R||lalina^|20220311114103||11|IH-1000|0300768|lalina\r"
-	data = data + "C|1|ID-Diluent 2^^05761.03.12^20240131\\^^^|CAS^5005352062212117030^50053.52.06^20221231^5||\r"
-	data = data + "R|3|^^^AntiD^MO10^Bloodgroup: A,B,D Confirmation for Patients (DiaClon) (5005)^|0^^|C||||R||lalina^|20220311114103||11|IH-1000|0300768|lalina\r"
-	data = data + "P|2||1010868845||Testis^Tost||19400607|M||||||||||||||||||||||||^\r"
-	data = data + "O|1|1122206642|1122206642^^^\\1122206642^^^|^^^MO10^^28343^|R|20220311103217|20220311103217|||||||||||11||||20220311114103|||P\r"
-	data = data + "R|1|^^^AntiA^MO10^Bloodgroup: A,B,D Confirmation for Patients (DiaClon) (5005)^|40^^|C||||R||lalina^|20220311114103||11|IH-1000|0300768|lalina\r"
 	data = data + "L|1|N\r"
 
 	var message MessageTimeAccess
@@ -333,5 +315,5 @@ func TestComponentAccessOnTime(t *testing.T) {
 
 	expDate, err := time.ParseInLocation("20060102", "20240131", location)
 	assert.Nil(t, err, "Can not parse date")
-	assert.Equal(t, expDate, message.OrderResults[0].CommentedResult[0].Comment[0].ExpirationDateOfReagent)
+	assert.Equal(t, expDate, message.Comment.ExpirationDateOfReagent)
 }
