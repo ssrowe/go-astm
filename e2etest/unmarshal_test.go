@@ -317,3 +317,44 @@ func TestComponentAccessOnTime(t *testing.T) {
 	assert.Nil(t, err, "Can not parse date")
 	assert.Equal(t, expDate, message.Comment.ExpirationDateOfReagent)
 }
+
+type TestCommentNoneBugComment struct {
+	SequenceNumber int       `astm:"2,sequence"`
+	Field1         time.Time `astm:"3.1.4"` // out of bounds with component index
+	Field2         time.Time `astm:"3.2.4"` // out of bounds with repeat index
+	Field3         time.Time `astm:"4.4"`
+}
+type TestCommentNoneBugMessage struct {
+	Field TestCommentNoneBugComment `astm:"C"`
+}
+
+type TestCommentNoneBugCommentCrash struct {
+	SequenceNumber int       `astm:"2,sequence"`
+	Field1         time.Time `astm:"3.1.4,required"` // out of bounds with component index
+	Field2         time.Time `astm:"3.2.4"`          // out of bounds with repeat index
+	Field3         time.Time `astm:"4.4,required"`
+}
+
+type TestCommentNoneBugMessageCrash struct {
+	Field TestCommentNoneBugComment `astm:"C"`
+}
+
+func TestCommentNoneBug(t *testing.T) {
+	data := ""
+	data = data + "C|1|^^^||\r"
+
+	var message TestCommentNoneBugMessage
+	err := lis2a2.Unmarshal([]byte(data), &message,
+		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
+
+	assert.Nil(t, err)
+
+	assert.Equal(t, time.Time{}, message.Field.Field1)
+	assert.Equal(t, time.Time{}, message.Field.Field2)
+	assert.Equal(t, time.Time{}, message.Field.Field3)
+
+	/* var crash TestCommentNoneBugMessageCrash
+	err := lis2a2.Unmarshal([]byte(data), &crash,
+		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
+	assert.NotNil(t, err) */
+}
