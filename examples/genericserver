@@ -1,0 +1,11 @@
+package genericserver
+
+func ExampleGenericServer() {
+
+	tcphandler := CreateTCPServer(4001, SENDPROXY_V1, PlainDataProtocol, 
+		ServerTimings{
+			connectionTimeout_ms : -1
+			sessionTimeout_ms : -1
+		})
+
+}
