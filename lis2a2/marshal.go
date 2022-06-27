@@ -113,6 +113,11 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 
 		field := currentRecord.Field(i)
 		fieldAstmTag := currentRecord.Type().Field(i).Tag.Get("astm")
+
+		if fieldAstmTag == "" {
+			continue
+		}
+
 		fieldAstmTagsList := strings.Split(fieldAstmTag, ",")
 
 		fieldIdx, repeatIdx, componentIdx, err := readFieldAddressAnnotation(fieldAstmTagsList[0])
