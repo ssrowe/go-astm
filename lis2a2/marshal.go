@@ -122,10 +122,8 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 
 		fieldIdx, repeatIdx, componentIdx, err := readFieldAddressAnnotation(fieldAstmTagsList[0])
 		if err != nil {
-			return "", errors.New(fmt.Sprintf("Invalid annotation for field %s : (%s)", field.Type().Name(), err))
+			return "", fmt.Errorf("Invalid annotation for field %s : (%w)", currentRecord.Type().Field(i).Name, err)
 		}
-
-		//fmt.Printf("Decode %+v to %d.%d.%d for %s\n", fieldAstmTagsList, fieldIdx, repeatIdx, componentIdx, field.String())
 
 		switch field.Type().Kind() {
 		case reflect.String:
@@ -162,8 +160,6 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 				time := field.Interface().(time.Time)
 
 				if !time.IsZero() {
-
-					fmt.Println("Time = ", time)
 
 					if sliceContainsString(fieldAstmTagsList, ANNOTATION_LONGDATE) {
 						value := time.In(location).Format("20060102150405")
@@ -245,7 +241,15 @@ func generateOutputRecord(recordtype string, fieldList OutputRecords, REPEAT_DEL
 
 	output = output + recordtype + "|" // Record-ID, typical "H", "R", "O", .....
 
+	lastGeneratedFieldNo := -1
+
 	for _, field := range fieldList {
+
+		if lastGeneratedFieldNo > 0 && lastGeneratedFieldNo < field.Field-1 {
+			for i := 0; i < field.Field-lastGeneratedFieldNo-1; i++ {
+				output = output + "|"
+			}
+		}
 
 		fieldGroupBreak := field.Field != fieldGroup && fieldGroup != -1
 		repeatGroupBreak := field.Repeat != repeatGroup
@@ -271,6 +275,7 @@ func generateOutputRecord(recordtype string, fieldList OutputRecords, REPEAT_DEL
 				output = output + "|"
 				maxRepeat = 0
 				repeatGroup = 0
+				lastGeneratedFieldNo = field.Field
 			}
 
 			if repeatGroupBreak {
