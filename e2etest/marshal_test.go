@@ -173,6 +173,9 @@ type TestMarshalEnumMessage struct {
 	Record TestMarshalEnumRecord `astm:"X"`
 }
 
+/*
+	Marshalling of enums
+*/
 func TestEnumMarshal(t *testing.T) {
 	var msg TestMarshalEnumMessage
 
@@ -186,5 +189,61 @@ func TestEnumMarshal(t *testing.T) {
 		linestr := string(line)
 		fmt.Println(linestr)
 	}
+
+}
+
+type TestCorrectFieldEnumeration struct {
+	Request OrderRequestV5 `astm:"R"`
+}
+
+/*
+	Testing field assignments
+*/
+type OrderRequestV5 struct {
+	// ID                  uuid.UUID `json:"id" db:"id"`
+	SequenceNumber      int    `astm:"2,sequence" db:"sequence_number"` // 8.4.2 (see https://samson-rus.com/wp-content/files/LIS2-A2.pdf)
+	SpecimenID          string `astm:"3" db:"specimen_id"`              // 8.4.3
+	CodeOfSpecimen1     string `astm:"4.1.1" db:"code_of_specimen_1"`   // 8.4.4
+	TypeOfSpecimen1     string `astm:"4.1.2" db:"type_of_specimen_1"`
+	CodeOfDonor1        string `astm:"4.1.3" db:"code_of_donor_1"`
+	TypeOfDonorSample1  string `astm:"4.1.4" db:"type_of_donor_sample_1"`
+	CodeOfSpecimen2     string `astm:"4.2.1" db:"code_of_specimen_2"` // 8.4.4
+	TypeOfSpecimen2     string `astm:"4.2.2" db:"type_of_specimen_2"`
+	CodeOfDonor2        string `astm:"4.2.3" db:"code_of_donor_2"`
+	TypeOfDonorSample2  string `astm:"4.2.4" db:"type_of_donor_sample_2"`
+	UniversalTestID     string `astm:"5.1" db:"universal_test_id"`      // 8.4.5
+	UniversalTestIDName string `astm:"5.2" db:"universal_test_id_name"` // 8.4.5
+	UniversalTestIDType string `astm:"5.3" db:"universal_test_id_type"` // 8.4.5
+	ManufacturesTestID  string `astm:"5.4" db:"manufactures_test_id"`
+	// Priority                    OrderPriority `astm:"6" db:"priority"`                               // 8.4.6
+	RequestedOrderDateTime      time.Time `astm:"7,longdate" db:"requested_order_date_time"`     // 8.4.7
+	SpecimenCollectionDateTime  time.Time `astm:"8,longdate" db:"specimen_collection_date_time"` // 8.4.8
+	CollectionEndTime           time.Time `astm:"9,longdate" db:"collection_end_time"`           // 8.4.9
+	CollectionVolume            string    `astm:"10" db:"collection_volume"`                     // 8.4.10
+	CollectorID                 string    `astm:"11" db:"collector_id"`                          // 8.4.11
+	ActionCode                  string    `astm:"12" db:"action_code"`                           // 8.4.12
+	DangerCode                  string    `astm:"13" db:"danger_code"`                           // 8.4.13
+	RelevantClinicalInformation string    `astm:"14" db:"relevant_clinical_information"`         // 8.4.14
+	DateTimeSpecimenReceived    string    `astm:"15" db:"date_time_specimen_received"`           // 8.4.15
+	SpecimenTypeSource          string    `astm:"16" db:"specimen_type_source"`                  // 8.4.16
+	OrderingPhysician           string    `astm:"17" db:"ordering_physician"`                    // 8.4.17
+	PhysicianTelephone          string    `astm:"18" db:"physician_telephone"`                   // 8.4.18
+	UserField1                  string    `astm:"19" db:"user_field_1"`                          // 8.4.19
+	UserField2                  string    `astm:"20" db:"user_field_2"`                          // 8.4.20
+	LaboratoryField1            string    `astm:"21" db:"laboratory_field_1"`
+	LaboratoryField2            string    `astm:"22" db:"laboratory_field_2"`
+	// ProtocolMessageHistoryID    uuid.UUID     `db:"message_history_id"`
+	CreatedAt time.Time `db:"created_at"`
+}
+
+func TestFieldEnumeration(t *testing.T) {
+	var orq TestCorrectFieldEnumeration
+
+	orq.Request.ActionCode = "N"
+	record, err := lis2a2.Marshal(orq, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.StandardNotation)
+
+	assert.Nil(t, err)
+
+	assert.Equal(t, "R|1||^^^\\^^^|||||^^^|||N|||||||||||", string(record[0]))
 
 }
