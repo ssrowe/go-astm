@@ -302,5 +302,11 @@ func generateOutputRecord(recordtype string, fieldList OutputRecords, REPEAT_DEL
 		}
 	}
 
+	// the above algorithm generates the pattern <field>+"|", which causes the record to always! have one delimiter too much at the end
+	if len(output) > 2 {
+		if output[len(output)-1:] == "|" {
+			output = output[:len(output)-1] // obsolete the very last "|"
+		}
+	}
 	return output
 }

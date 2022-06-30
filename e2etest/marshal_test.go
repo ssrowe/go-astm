@@ -247,3 +247,23 @@ func TestFieldEnumeration(t *testing.T) {
 	assert.Equal(t, "R|1||^^^\\^^^|||||^^^|||N|||||||||||", string(record[0]))
 
 }
+
+/*
+	Testing bug: one delimiter too much
+*/
+type TestOneDlimiterTooMuchStruct struct {
+	Terminator standardlis2a2.Terminator `astm:"L"`
+}
+
+func TestOneDlimiterTooMuch(t *testing.T) {
+
+	var record TestOneDlimiterTooMuchStruct
+
+	record.Terminator.TerminatorCode = "N"
+	filedata, err := lis2a2.Marshal(record, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.StandardNotation)
+
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(filedata))
+
+	assert.Equal(t, "L|1|N", string(filedata[0]))
+}
