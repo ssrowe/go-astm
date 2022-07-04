@@ -8,6 +8,7 @@ import (
 	"github.com/DRK-Blutspende-BaWueHe/go-astm/lib/standardlis2a2"
 	"github.com/DRK-Blutspende-BaWueHe/go-astm/lis2a2"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/text/encoding/charmap"
 )
 
 type IllFormatedButLegal struct {
@@ -46,9 +47,9 @@ func TestSimpleMarshal(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	assert.Equal(t, "H|\\^&||password|test||||||||0.1.0|", string(lines[0]))
-	assert.Equal(t, "?|1|first-arr1^^third-arr1\\first-arr2^second-arr2||", string(lines[1]))
-	assert.Equal(t, "L|1||", string(lines[2]))
+	assert.Equal(t, "H|\\^&||password|test||||||||0.1.0", string(lines[0]))
+	assert.Equal(t, "?|1|first-arr1^^third-arr1\\first-arr2^second-arr2|", string(lines[1]))
+	assert.Equal(t, "L|1|", string(lines[2]))
 }
 
 type ArrayMessageMarshal struct {
@@ -76,10 +77,10 @@ func TestGenverateSequence(t *testing.T) {
 		fmt.Println(linestr)
 	}
 
-	assert.Equal(t, "H|\\^&||||||||||||", string(lines[0]))
+	assert.Equal(t, "H|\\^&|||||||||||", string(lines[0]))
 	assert.Equal(t, "P|1||||Firstus'^Firstie|||||||||||||||||||||||||||||", string(lines[1]))
 	assert.Equal(t, "P|2||||Secundus'^Secundie|||||||||||||||||||||||||||||", string(lines[2]))
-	assert.Equal(t, "L|1||", string(lines[3]))
+	assert.Equal(t, "L|1|", string(lines[3]))
 }
 
 type PatientResult struct {
@@ -124,13 +125,13 @@ func TestNestedStruct(t *testing.T) {
 		fmt.Println(linestr)
 	}
 
-	assert.Equal(t, "H|\\^&||||||||||||", string(lines[0]))
-	assert.Equal(t, "P|1||||Norris^Chuck||||||||||||||||||||||Binaries|||||||", string(lines[1]))
-	assert.Equal(t, "R|1|^^^^SulfurBloodCount^^|^^100|%|||||^||", string(lines[2]))
-	assert.Equal(t, "R|2|^^^^Catblood^^|^^>100000|U/l|||||^||", string(lines[3]))
-	assert.Equal(t, "P|1||||Cartman^Eric||||||||||||||||||||||None|||||||", string(lines[4]))
-	assert.Equal(t, "R|1|^^^^Fungenes^^|^^present|none|||||^||", string(lines[5]))
-	assert.Equal(t, "L|1||", string(lines[6]))
+	assert.Equal(t, "H|\\^&|||||||||||", string(lines[0]))
+	assert.Equal(t, "P|1||||Norris^Chuck|||||||||||||||||||||||Binaries||||||", string(lines[1]))
+	assert.Equal(t, "R|1|^^^^SulfurBloodCount^^|^^100|%||||||||^|", string(lines[2]))
+	assert.Equal(t, "R|2|^^^^Catblood^^|^^>100000|U/l||||||||^|", string(lines[3]))
+	assert.Equal(t, "P|1||||Cartman^Eric|||||||||||||||||||||||None||||||", string(lines[4]))
+	assert.Equal(t, "R|1|^^^^Fungenes^^|^^present|none||||||||^|", string(lines[5]))
+	assert.Equal(t, "L|1|", string(lines[6]))
 }
 
 type TimeTestMessageMarshal struct {
@@ -155,7 +156,7 @@ func TestTimeLocalization(t *testing.T) {
 	lines, err := lis2a2.Marshal(msg, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.ShortNotation)
 	assert.Nil(t, err)
 
-	assert.Equal(t, fmt.Sprintf("H|\\^&||||||||||||%s|", timeInBerlin.Format("20060102150405")), string(lines[0]))
+	assert.Equal(t, fmt.Sprintf("H|\\^&||||||||||||%s", timeInBerlin.Format("20060102150405")), string(lines[0]))
 }
 
 type TestMarshalEnum string
@@ -244,7 +245,7 @@ func TestFieldEnumeration(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	assert.Equal(t, "R|1||^^^\\^^^|||||^^^|||N|||||||||||", string(record[0]))
+	assert.Equal(t, "R|1||^^^\\^^^|||||^^^|||N||||||||||", string(record[0]))
 
 }
 
@@ -266,4 +267,27 @@ func TestOneDlimiterTooMuch(t *testing.T) {
 	assert.Equal(t, 1, len(filedata))
 
 	assert.Equal(t, "L|1|N", string(filedata[0]))
+}
+
+//--------------------------------------------------------------
+// Testing bug: German Language encoding
+//--------------------------------------------------------------
+type TestGermanLanguageDecoderRecord struct {
+	Patient standardlis2a2.Patient `astm:"P"`
+}
+
+func TestGermanLanguageDecoder(t *testing.T) {
+
+	var record TestGermanLanguageDecoderRecord
+
+	record.Patient.FirstName = "Högendäg"
+	record.Patient.LastName = "Nügendiß"
+	filedata, err := lis2a2.Marshal(record, lis2a2.EncodingWindows1252, lis2a2.TimezoneEuropeBerlin, lis2a2.StandardNotation)
+
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(filedata))
+
+	expectedWindows1252 := helperEncode(charmap.Windows1252, []byte("P|1||||Nügendiß^Högendäg|||||||||||||||||||||||||||||"))
+
+	assert.Equal(t, expectedWindows1252, filedata[0])
 }
