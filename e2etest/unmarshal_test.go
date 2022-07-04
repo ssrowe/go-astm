@@ -1,12 +1,16 @@
 package e2e
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
 	"github.com/DRK-Blutspende-BaWueHe/go-astm/lib/standardlis2a2"
 	"github.com/DRK-Blutspende-BaWueHe/go-astm/lis2a2"
 	"github.com/stretchr/testify/assert"
+
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/transform"
 )
 
 type MinimalMessage struct {
@@ -357,4 +361,42 @@ func TestCommentNoneBug(t *testing.T) {
 	err := lis2a2.Unmarshal([]byte(data), &crash,
 		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
 	assert.NotNil(t, err) */
+}
+
+//-----------------------------------------------------------------------------------
+// TEST a german message Win1252 Encoded
+//-----------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------
+type MessageGermanLanguageTest struct {
+	Header     standardlis2a2.Header     `astm:"H"`
+	Patient    standardlis2a2.Patient    `astm:"P"`
+	Terminator standardlis2a2.Terminator `astm:"L"`
+}
+
+func TestGermanLanguage(t *testing.T) {
+	data := ""
+	data = data + "H|\\^&|||Bio-Rad|IH v5.2||||||||20220315194227\n"
+	data = data + "P|1||1010868845||König^#$§?/+öäüß||19400607|M||||||||||||||||||||||||^\r"
+	data = data + "L|1|N\n" // ! mixed line-endings (should not matter)
+
+	var message MessageGermanLanguageTest
+
+	// Windows1252
+
+	encdata := helperEncode(charmap.Windows1252, []byte(data))
+	err := lis2a2.Unmarshal([]byte(encdata), &message, lis2a2.EncodingWindows1252, lis2a2.TimezoneEuropeBerlin)
+	assert.Nil(t, err)
+	assert.Equal(t, "König", message.Patient.LastName)
+	assert.Equal(t, "#$§?/+öäüß", message.Patient.FirstName)
+
+}
+
+func helperEncode(charmap *charmap.Charmap, data []byte) []byte {
+	e := charmap.NewEncoder()
+	var b bytes.Buffer
+	writer := transform.NewWriter(&b, e)
+	writer.Write([]byte(data))
+	resultdata := b.Bytes()
+	writer.Close()
+	return resultdata
 }

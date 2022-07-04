@@ -1,6 +1,7 @@
 package lis2a2
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
@@ -8,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aglyzov/charmap"
+	"golang.org/x/text/encoding/charmap"
 )
 
 func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Timezone) error {
@@ -19,42 +20,35 @@ func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Ti
 	)
 	switch enc {
 	case EncodingUTF8:
-		// do nothing, this is correct
 		messageBytes = messageData
 	case EncodingASCII:
 		messageBytes = messageData
 	case EncodingDOS866:
-		messageBytes, err = charmap.ANY_to_UTF8(messageData, "DOS866")
-		if err != nil {
-			return errors.New(fmt.Sprintf("Invalid input : %s", err))
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.CodePage866, messageData); err != nil {
+			return err
 		}
 	case EncodingDOS855:
-		messageBytes, err = charmap.ANY_to_UTF8(messageData, "DOS855")
-		if err != nil {
-			return errors.New(fmt.Sprintf("Invalid input : %s", err))
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.CodePage855, messageData); err != nil {
+			return err
 		}
 	case EncodingDOS852:
-		messageBytes, err = charmap.ANY_to_UTF8(messageData, "DOS852")
-		if err != nil {
-			return errors.New(fmt.Sprintf("Invalid input : %s", err))
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.CodePage852, messageData); err != nil {
+			return err
 		}
 	case EncodingWindows1250:
-		messageBytes, err = charmap.ANY_to_UTF8(messageData, "CP1250")
-		if err != nil {
-			return errors.New(fmt.Sprintf("Invalid input : %s", err))
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.Windows1250, messageData); err != nil {
+			return err
 		}
 	case EncodingWindows1251:
-		messageBytes, err = charmap.ANY_to_UTF8(messageData, "CP1251")
-		if err != nil {
-			return errors.New(fmt.Sprintf("Invalid input : %s", err))
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.Windows1251, messageData); err != nil {
+			return err
 		}
 	case EncodingWindows1252:
-		messageBytes, err = charmap.ANY_to_UTF8(messageData, "CP1252")
-		if err != nil {
-			return errors.New(fmt.Sprintf("Invalid input : %s", err))
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.Windows1252, messageData); err != nil {
+			return err
 		}
 	default:
-		return errors.New(fmt.Sprintf("Invalid Codepage Code:%d", enc))
+		return fmt.Errorf("invalid Codepage Id='%d' - %w", enc, err)
 	}
 
 	// first try to break by 0x0a (non-standard, but used sometimes)
@@ -62,6 +56,7 @@ func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Ti
 	if len(bufferedInputLines) <= 1 {                                               // if it was not possible to break with non-standard 0x0a line-break try 0d (standard)
 		bufferedInputLines = strings.Split(string(messageBytes), string([]byte{0x0D}))
 	}
+
 	// strip the remaining 0A and 0D Linefeed at the end
 	for i := 0; i < len(bufferedInputLines); i++ {
 		// 0d,0a then again as there have been files observed which had 0a0d (0d0a would be normal)
@@ -69,7 +64,6 @@ func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Ti
 		bufferedInputLines[i] = strings.Trim(bufferedInputLines[i], string([]byte{0x0D}))
 		bufferedInputLines[i] = strings.Trim(bufferedInputLines[i], string([]byte{0x0A}))
 		bufferedInputLines[i] = strings.Trim(bufferedInputLines[i], string([]byte{0x0D}))
-
 	}
 
 	var (
@@ -94,6 +88,17 @@ const (
 	UNEXPECTED RETV = 2 // an exit that wont abort processing. used for skipping optional records
 	ERROR      RETV = 3 // a definite error that stops the process
 )
+
+func EncodeCharsetToUTF8From(charmap *charmap.Charmap, data []byte) ([]byte, error) {
+	sr := bytes.NewReader(data)
+	e := charmap.NewDecoder().Reader(sr)
+	bytes := make([]byte, len(data)*2)
+	n, err := e.Read(bytes)
+	if err != nil {
+		return []byte{}, err
+	}
+	return bytes[:n], nil
+}
 
 /* This function takes a string and a struct and matches the annotated fields to the string-input */
 func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLine int, targetStruct interface{}, enc Encoding, tz Timezone,

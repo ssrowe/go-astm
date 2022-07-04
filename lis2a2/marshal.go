@@ -1,12 +1,16 @@
 package lis2a2
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/transform"
 )
 
 /** Marshal - wrap datastructure to code
@@ -102,7 +106,50 @@ func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encod
 
 	}
 
+	switch enc {
+	case EncodingUTF8:
+		// nothing
+	case EncodingASCII:
+		// nothing
+	case EncodingDOS866:
+		for i, x := range buffer {
+			buffer[i] = EncodeUTF8ToCharset(charmap.CodePage866, x)
+		}
+	case EncodingDOS855:
+		for i, x := range buffer {
+			buffer[i] = EncodeUTF8ToCharset(charmap.CodePage855, x)
+		}
+	case EncodingDOS852:
+		for i, x := range buffer {
+			buffer[i] = EncodeUTF8ToCharset(charmap.CodePage852, x)
+		}
+	case EncodingWindows1250:
+		for i, x := range buffer {
+			buffer[i] = EncodeUTF8ToCharset(charmap.Windows1250, x)
+		}
+	case EncodingWindows1251:
+		for i, x := range buffer {
+			buffer[i] = EncodeUTF8ToCharset(charmap.Windows1251, x)
+		}
+	case EncodingWindows1252:
+		for i, x := range buffer {
+			buffer[i] = EncodeUTF8ToCharset(charmap.Windows1252, x)
+		}
+	default:
+		return nil, fmt.Errorf("invalid Codepage Id='%d' in marshalling message", enc)
+	}
+
 	return buffer, nil
+}
+
+func EncodeUTF8ToCharset(charmap *charmap.Charmap, data []byte) []byte {
+	e := charmap.NewEncoder()
+	var b bytes.Buffer
+	writer := transform.NewWriter(&b, e)
+	writer.Write([]byte(data))
+	resultdata := b.Bytes()
+	writer.Close()
+	return resultdata
 }
 
 func processOneRecord(recordType string, currentRecord reflect.Value, generatedSequenceNumber int, location *time.Location, repeatDelimiter, componentDelimiter, escapeDelimiter *string) (string, error) {
