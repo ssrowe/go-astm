@@ -391,6 +391,16 @@ func TestGermanLanguage(t *testing.T) {
 
 }
 
+func TestTransmissionWithoutLTerminator(t *testing.T) {
+	data := ""
+	data = data + "H|\\^&|||\r"
+	data = data + "P|1||DIA-27-079-5-1\r"
+
+	var message standardlis2a2.DefaultMessage
+	err := lis2a2.Unmarshal([]byte(data), &message, lis2a2.EncodingWindows1252, lis2a2.TimezoneEuropeBerlin)
+	assert.Nil(t, err)
+}
+
 func helperEncode(charmap *charmap.Charmap, data []byte) []byte {
 	e := charmap.NewEncoder()
 	var b bytes.Buffer

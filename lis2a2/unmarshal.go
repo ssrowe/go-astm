@@ -209,6 +209,10 @@ func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLi
 			expectedInputRecordTypeOptional = true
 		}
 
+		if currentInputLine >= len(bufferedInputLines) { // premature end ...
+			return currentInputLine, ERROR, fmt.Errorf("premature end of input in line %d (Missing Data)", currentInputLine)
+		}
+
 		if len(bufferedInputLines[currentInputLine]) == 0 {
 			continue // empty lines can only be skipped
 		}
