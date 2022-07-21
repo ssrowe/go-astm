@@ -52,18 +52,26 @@ func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Ti
 	}
 
 	// first try to break by 0x0a (non-standard, but used sometimes)
-	bufferedInputLines := strings.Split(string(messageBytes), string([]byte{0x0A})) // copy
-	if len(bufferedInputLines) <= 1 {                                               // if it was not possible to break with non-standard 0x0a line-break try 0d (standard)
-		bufferedInputLines = strings.Split(string(messageBytes), string([]byte{0x0D}))
+	bufferedInputLinesWithEmptyLines := strings.Split(string(messageBytes), string([]byte{0x0A})) // copy
+	if len(bufferedInputLinesWithEmptyLines) <= 1 {                                               // if it was not possible to break with non-standard 0x0a line-break try 0d (standard)
+		bufferedInputLinesWithEmptyLines = strings.Split(string(messageBytes), string([]byte{0x0D}))
 	}
 
 	// strip the remaining 0A and 0D Linefeed at the end
-	for i := 0; i < len(bufferedInputLines); i++ {
+	for i := 0; i < len(bufferedInputLinesWithEmptyLines); i++ {
 		// 0d,0a then again as there have been files observed which had 0a0d (0d0a would be normal)
-		bufferedInputLines[i] = strings.Trim(bufferedInputLines[i], string([]byte{0x0A}))
-		bufferedInputLines[i] = strings.Trim(bufferedInputLines[i], string([]byte{0x0D}))
-		bufferedInputLines[i] = strings.Trim(bufferedInputLines[i], string([]byte{0x0A}))
-		bufferedInputLines[i] = strings.Trim(bufferedInputLines[i], string([]byte{0x0D}))
+		bufferedInputLinesWithEmptyLines[i] = strings.Trim(bufferedInputLinesWithEmptyLines[i], string([]byte{0x0A}))
+		bufferedInputLinesWithEmptyLines[i] = strings.Trim(bufferedInputLinesWithEmptyLines[i], string([]byte{0x0D}))
+		bufferedInputLinesWithEmptyLines[i] = strings.Trim(bufferedInputLinesWithEmptyLines[i], string([]byte{0x0A}))
+		bufferedInputLinesWithEmptyLines[i] = strings.Trim(bufferedInputLinesWithEmptyLines[i], string([]byte{0x0D}))
+	}
+
+	// remove empty lines
+	bufferedInputLines := []string{}
+	for i := range bufferedInputLinesWithEmptyLines {
+		if strings.Trim(bufferedInputLinesWithEmptyLines[i], " ") != "" {
+			bufferedInputLines = append(bufferedInputLines, bufferedInputLinesWithEmptyLines[i])
+		}
 	}
 
 	var (

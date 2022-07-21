@@ -398,7 +398,7 @@ func TestTransmissionWithoutLTerminator(t *testing.T) {
 
 	var message standardlis2a2.DefaultMessage
 	err := lis2a2.Unmarshal([]byte(data), &message, lis2a2.EncodingWindows1252, lis2a2.TimezoneEuropeBerlin)
-	assert.Nil(t, err)
+	assert.NotNil(t, err)
 }
 
 func helperEncode(charmap *charmap.Charmap, data []byte) []byte {
@@ -409,4 +409,19 @@ func helperEncode(charmap *charmap.Charmap, data []byte) []byte {
 	resultdata := b.Bytes()
 	writer.Close()
 	return resultdata
+}
+
+func TestFailOnUndisciplinedMultipleCRCRatEndOfLine(t *testing.T) {
+	data := ""
+	data = data + "H|\\^&|||\u000d\u000d"
+	data = data + "P|1||DIA-04-066-7-1\u000d\u000d"
+	data = data + "O|1|||^^^SARS-CoV-2 NeutraLISA||20220715071342\u000d\u000d"
+	data = data + "R|1|^^^SARS-CoV-2 NeutraLISA|99,66|% IH|\u000d\u000d"
+	data = data + "L|1|N\u000d\u000d"
+
+	var message standardlis2a2.DefaultMessage
+	err := lis2a2.Unmarshal([]byte(data), &message,
+		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
+
+	assert.Nil(t, err)
 }
