@@ -388,7 +388,6 @@ func TestGermanLanguage(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "König", message.Patient.LastName)
 	assert.Equal(t, "#$§?/+öäüß", message.Patient.FirstName)
-
 }
 
 func TestTransmissionWithoutLTerminator(t *testing.T) {
@@ -399,6 +398,66 @@ func TestTransmissionWithoutLTerminator(t *testing.T) {
 	var message standardlis2a2.DefaultMessage
 	err := lis2a2.Unmarshal([]byte(data), &message, lis2a2.EncodingWindows1252, lis2a2.TimezoneEuropeBerlin)
 	assert.NotNil(t, err)
+}
+
+func TestFullMultipleASTMMessage(t *testing.T) {
+	var data string
+
+	// Message 1
+	data = data + "H|\\^&|||Bio-Rad|IH v5.2||||||||20220315194227\r"
+	data = data + "P|1||DIA-01-085-7-1\r"
+	data = data + "O|1|||^^^SARSQVIGG3||20220715071219\r"
+	data = data + "R|1|^^^SARSQVIGG3|2598,88|BAU/ml|\r"
+	data = data + "P|2||DIA-01-056-7-1\r"
+	data = data + "O|1|||^^^SARSQVIGG3||20220715071219\r"
+	data = data + "R|1|^^^SARSQVIGG3|3636,64|BAU/ml|\r"
+	data = data + "L|1|N\r"
+
+	// Message 2
+	data = data + "H|\\^&|||Bio-Rad|IH v5.2||||||||20220315194227\r"
+	data = data + "P|1||DIA-01-085-7-1\r"
+	data = data + "O|1|||^^^SARSNCPIGG||20220715071219\r"
+	data = data + "R|1|^^^SARSNCPIGG|0,08|Ratio|\r"
+	data = data + "P|2||DIA-01-056-7-1\r"
+	data = data + "O|1|||^^^SARSNCPIGG||20220715071219\r"
+	data = data + "R|1|^^^SARSNCPIGG|0,20|Ratio|\r"
+	data = data + "L|1|N\r"
+
+	// Message 3
+	data = data + "H|\\^&|||Bio-Rad|IH v5.2||||||||20220315194227\r"
+	data = data + "P|1||DIA-01-085-7-1\r"
+	data = data + "O|1|||^^^SARSNEUTRA||20220715071219\r"
+	data = data + "R|1|^^^SARSNEUTRA|99,39|% IH|\r"
+	data = data + "P|2||DIA-01-056-7-1\r"
+	data = data + "O|1|||^^^SARSNEUTRA||20220715071219\r"
+	data = data + "R|1|^^^SARSNEUTRA|99,23|% IH|\r"
+	data = data + "L|1|N\r"
+
+	// Message 4
+	data = data + "H|\\^&|||Bio-Rad|IH v5.2||||||||20220315194227\r"
+	data = data + "P|1||DIA-01-085-7-1\r"
+	data = data + "O|1|||^^^SARSCOV2IGA||20220715071219\r"
+	data = data + "R|1|^^^SARSCOV2IGA|>10|Ratio|\r"
+	data = data + "P|2||DIA-01-056-7-1\r"
+	data = data + "O|1|||^^^SARSCOV2IGA||20220715071219\r"
+	data = data + "R|1|^^^SARSCOV2IGA|>10|Ratio|\r"
+	data = data + "P|3||DIA-01-061-7-1\r"
+	data = data + "O|1|||^^^SARSCOV2IGA||20220715071219\r"
+	data = data + "R|1|^^^SARSCOV2IGA|4,87|Ratio|\r"
+	data = data + "P|4||DIA-01-055-7-1\r"
+	data = data + "O|1|||^^^SARSCOV2IGA||20220715071219\r"
+	data = data + "R|1|^^^SARSCOV2IGA|4,14|Ratio|\r"
+	data = data + "L|1|N"
+
+	var message []standardlis2a2.DefaultMessage
+	err := lis2a2.Unmarshal(
+		[]byte(data),
+		&message,
+		lis2a2.EncodingUTF8,
+		lis2a2.TimezoneEuropeBerlin)
+
+	assert.Nil(t, err)
+	assert.Equal(t, 4, len(message))
 }
 
 func helperEncode(charmap *charmap.Charmap, data []byte) []byte {

@@ -13,11 +13,11 @@ import (
 )
 
 func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Timezone) error {
-
 	var (
 		messageBytes []byte
 		err          error
 	)
+
 	switch enc {
 	case EncodingUTF8:
 		messageBytes = messageData
@@ -80,10 +80,49 @@ func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Ti
 		escapeDelimiter    = "&"
 	)
 
-	_, _, err = reflectInputToStruct(bufferedInputLines, 1 /*recursion-depth*/, 0 /*current line*/, targetStruct, enc, tz,
-		&repeatDelimiter, &componentDelimiter, &escapeDelimiter)
+	targetStructType := reflect.TypeOf(targetStruct)
+	targetStructIsArray := false
+	var output []interface{}
+	currentInputLine := 0
+PARSE_MESSAGE_INTO_STRUCT:
+	var outputTarget interface{} = targetStruct
+	if targetStructType.Elem().Kind() == reflect.Slice {
+		targetStructIsArray = true
+		outputTarget = reflect.New(targetStructType.Elem().Elem()).Interface()
+	}
+
+	currentInputLine, _, err = reflectInputToStruct(
+		bufferedInputLines,
+		1, /*recursion-depth*/
+		currentInputLine,
+		outputTarget,
+		enc,
+		tz,
+		&repeatDelimiter,
+		&componentDelimiter,
+		&escapeDelimiter)
+
 	if err != nil {
 		return err
+	}
+
+	output = append(output, outputTarget)
+
+	// if we have reached the end of the first message but not the end of our buffered input
+	if currentInputLine < len(bufferedInputLines) {
+		if targetStructIsArray == false {
+			return errors.New("There is at least one unprocessed message but the output target is not an array! Please change the type of the output to array.")
+		}
+
+		// then parse the next message
+		goto PARSE_MESSAGE_INTO_STRUCT
+	}
+
+	if targetStructIsArray {
+		// TODO: The output field is populated with valid messages but these cannot be saved into the "targetStruct".
+		targetStruct = output
+	} else {
+		targetStruct = output[0]
 	}
 
 	return nil
@@ -136,7 +175,6 @@ func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLi
 	}
 
 	for i := 0; i < targetStructType.NumField(); i++ {
-
 		currentRecord := targetStructValue.Field(i)
 		ftype := targetStructType.Field(i)
 		astmTag := ftype.Tag.Get("astm")
