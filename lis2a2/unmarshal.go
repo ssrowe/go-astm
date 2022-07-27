@@ -108,6 +108,11 @@ PARSE_MESSAGE_INTO_STRUCT:
 
 	output = append(output, outputTarget)
 
+	// stop processing after the given limit has reached
+	if len(output) > 44 {
+		return errors.New("Maximum number of messages reached!")
+	}
+
 	// if we have reached the end of the first message but not the end of our buffered input
 	if currentInputLine < len(bufferedInputLines) {
 		if targetStructIsArray == false {
