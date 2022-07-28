@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 	"time"
 
@@ -449,15 +450,15 @@ func TestFullMultipleASTMMessage(t *testing.T) {
 	data = data + "R|1|^^^SARSCOV2IGA|4,14|Ratio|\r"
 	data = data + "L|1|N"
 
-	var message []standardlis2a2.DefaultMessage
-	err := lis2a2.Unmarshal(
+	err, messages := lis2a2.UnmarshalMultiple(
 		[]byte(data),
-		&message,
+		reflect.TypeOf((*[]standardlis2a2.DefaultMessage)(nil)).Elem(),
 		lis2a2.EncodingUTF8,
 		lis2a2.TimezoneEuropeBerlin)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 4, len(message))
+	assert.NotNil(t, messages)
+	assert.Equal(t, 4, len(messages))
 }
 
 func helperEncode(charmap *charmap.Charmap, data []byte) []byte {

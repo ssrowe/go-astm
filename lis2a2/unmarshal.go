@@ -12,6 +12,111 @@ import (
 	"golang.org/x/text/encoding/charmap"
 )
 
+func UnmarshalMultiple(messageData []byte, targetType reflect.Type, enc Encoding, tz Timezone) (error, []interface{}) {
+	var (
+		messageBytes []byte
+		err          error
+	)
+
+	switch enc {
+	case EncodingUTF8:
+		messageBytes = messageData
+	case EncodingASCII:
+		messageBytes = messageData
+	case EncodingDOS866:
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.CodePage866, messageData); err != nil {
+			return err, nil
+		}
+	case EncodingDOS855:
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.CodePage855, messageData); err != nil {
+			return err, nil
+		}
+	case EncodingDOS852:
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.CodePage852, messageData); err != nil {
+			return err, nil
+		}
+	case EncodingWindows1250:
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.Windows1250, messageData); err != nil {
+			return err, nil
+		}
+	case EncodingWindows1251:
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.Windows1251, messageData); err != nil {
+			return err, nil
+		}
+	case EncodingWindows1252:
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.Windows1252, messageData); err != nil {
+			return err, nil
+		}
+	default:
+		return fmt.Errorf("invalid Codepage Id='%d' - %w", enc, err), nil
+	}
+
+	// first try to break by 0x0a (non-standard, but used sometimes)
+	bufferedInputLinesWithEmptyLines := strings.Split(string(messageBytes), string([]byte{0x0A})) // copy
+	if len(bufferedInputLinesWithEmptyLines) <= 1 {                                               // if it was not possible to break with non-standard 0x0a line-break try 0d (standard)
+		bufferedInputLinesWithEmptyLines = strings.Split(string(messageBytes), string([]byte{0x0D}))
+	}
+
+	// strip the remaining 0A and 0D Linefeed at the end
+	for i := 0; i < len(bufferedInputLinesWithEmptyLines); i++ {
+		// 0d,0a then again as there have been files observed which had 0a0d (0d0a would be normal)
+		bufferedInputLinesWithEmptyLines[i] = strings.Trim(bufferedInputLinesWithEmptyLines[i], string([]byte{0x0A}))
+		bufferedInputLinesWithEmptyLines[i] = strings.Trim(bufferedInputLinesWithEmptyLines[i], string([]byte{0x0D}))
+		bufferedInputLinesWithEmptyLines[i] = strings.Trim(bufferedInputLinesWithEmptyLines[i], string([]byte{0x0A}))
+		bufferedInputLinesWithEmptyLines[i] = strings.Trim(bufferedInputLinesWithEmptyLines[i], string([]byte{0x0D}))
+	}
+
+	// remove empty lines
+	bufferedInputLines := []string{}
+	for i := range bufferedInputLinesWithEmptyLines {
+		if strings.Trim(bufferedInputLinesWithEmptyLines[i], " ") != "" {
+			bufferedInputLines = append(bufferedInputLines, bufferedInputLinesWithEmptyLines[i])
+		}
+	}
+
+	var (
+		repeatDelimiter    = "\\"
+		componentDelimiter = "^"
+		escapeDelimiter    = "&"
+	)
+
+	var output []interface{}
+	currentInputLine := 0
+PARSE_MESSAGE_INTO_STRUCT:
+	var outputTarget interface{} = targetType.Elem()
+	outputTarget = reflect.New(targetType.Elem()).Interface()
+
+	currentInputLine, _, err = reflectInputToStruct(
+		bufferedInputLines,
+		1, /*recursion-depth*/
+		currentInputLine,
+		outputTarget,
+		enc,
+		tz,
+		&repeatDelimiter,
+		&componentDelimiter,
+		&escapeDelimiter)
+
+	if err != nil {
+		return err, nil
+	}
+
+	output = append(output, outputTarget)
+
+	// stop processing after the given limit has reached
+	if len(output) > 44 {
+		return errors.New("Maximum number of messages reached!"), nil
+	}
+
+	// if we have reached the end of the first message but not the end of our buffered input
+	if currentInputLine < len(bufferedInputLines) {
+		// then parse the next message
+		goto PARSE_MESSAGE_INTO_STRUCT
+	}
+
+	return nil, output
+}
+
 func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Timezone) error {
 	var (
 		messageBytes []byte
