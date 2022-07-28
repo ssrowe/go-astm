@@ -185,22 +185,12 @@ func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Ti
 		escapeDelimiter    = "&"
 	)
 
-	targetStructType := reflect.TypeOf(targetStruct)
-	targetStructIsArray := false
-	var output []interface{}
 	currentInputLine := 0
-PARSE_MESSAGE_INTO_STRUCT:
-	var outputTarget interface{} = targetStruct
-	if targetStructType.Elem().Kind() == reflect.Slice {
-		targetStructIsArray = true
-		outputTarget = reflect.New(targetStructType.Elem().Elem()).Interface()
-	}
-
 	currentInputLine, _, err = reflectInputToStruct(
 		bufferedInputLines,
 		1, /*recursion-depth*/
 		currentInputLine,
-		outputTarget,
+		targetStruct,
 		enc,
 		tz,
 		&repeatDelimiter,
@@ -211,28 +201,10 @@ PARSE_MESSAGE_INTO_STRUCT:
 		return err
 	}
 
-	output = append(output, outputTarget)
-
-	// stop processing after the given limit has reached
-	if len(output) > 44 {
-		return errors.New("Maximum number of messages reached!")
-	}
-
 	// if we have reached the end of the first message but not the end of our buffered input
 	if currentInputLine < len(bufferedInputLines) {
-		if targetStructIsArray == false {
-			return errors.New("There is at least one unprocessed message but the output target is not an array! Please change the type of the output to array.")
-		}
-
-		// then parse the next message
-		goto PARSE_MESSAGE_INTO_STRUCT
-	}
-
-	if targetStructIsArray {
-		// TODO: The output field is populated with valid messages but these cannot be saved into the "targetStruct".
-		targetStruct = output
-	} else {
-		targetStruct = output[0]
+		// return an error to avoid data loss
+		return errors.New("There is at least one unprocessed message but the output target is not an array! Please change the type of the output to array.")
 	}
 
 	return nil
