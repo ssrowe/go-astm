@@ -12,6 +12,9 @@ import (
 	"golang.org/x/text/encoding/charmap"
 )
 
+const MAX_MESSAGE_COUNT = 44
+const MAX_DEPTH = 44
+
 func UnmarshalMultiple(messageData []byte, targetType reflect.Type, enc Encoding, tz Timezone) (error, []interface{}) {
 	var (
 		messageBytes []byte
@@ -104,7 +107,7 @@ PARSE_MESSAGE_INTO_STRUCT:
 	output = append(output, outputTarget)
 
 	// stop processing after the given limit has reached
-	if len(output) > 44 {
+	if len(output) > MAX_MESSAGE_COUNT {
 		return errors.New("Maximum number of messages reached!"), nil
 	}
 
@@ -233,7 +236,7 @@ func EncodeCharsetToUTF8From(charmap *charmap.Charmap, data []byte) ([]byte, err
 func reflectInputToStruct(bufferedInputLines []string, depth int, currentInputLine int, targetStruct interface{}, enc Encoding, tz Timezone,
 	repeatDelimiter, componentDelimiter, escapeDelimiter *string) (int, RETV, error) {
 
-	if depth > 10 {
+	if depth > MAX_DEPTH {
 		return currentInputLine, ERROR, errors.New(fmt.Sprintf("Maximum recursion depth reached (%d). Too many nested structures ? - aborting", depth))
 	}
 
