@@ -204,7 +204,7 @@ func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Ti
 	// if we have reached the end of the first message but not the end of our buffered input
 	if currentInputLine < len(bufferedInputLines) {
 		// return an error to avoid data loss
-		return errors.New("There is at least one unprocessed message but the output target is not an array! Please change the type of the output to array.")
+		return errors.New("There is at least one unprocessed message! Please use the 'UnmarshalMultiple' method to parse multiple messages at once.")
 	}
 
 	return nil
