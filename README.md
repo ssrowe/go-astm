@@ -62,8 +62,23 @@ var message lis2a2.DefaultMessage
 
 err := lis2a2.Unmarshal([]byte(textdata), &message,
 		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
+
 if err != nil {
-  log.Fatal(err)		
+    log.Fatal(err)
+}
+```
+
+If you want to decode multiple messages at the same time, you can use the following method.
+
+``` go
+err, messages := lis2a2.UnmarshalMultiple(
+    []byte(data),
+    reflect.TypeOf((*[]standardlis2a2.DefaultMessage)(nil)).Elem(),
+    lis2a2.EncodingUTF8,
+    lis2a2.TimezoneEuropeBerlin)
+
+if err != nil {
+    log.Fatal(err)
 }
 ```
 
