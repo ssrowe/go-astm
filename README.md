@@ -58,7 +58,7 @@ type DefaultMessage struct {
 The following Go code decodes a ASTM provided as a string and stores all its information in the &message.
 
 ``` go
-var message lis2a2.DefaultMessage
+var message standardlis2a2.DefaultMessage
 
 err := lis2a2.Unmarshal([]byte(textdata), &message,
 		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
