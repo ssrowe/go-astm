@@ -191,3 +191,7 @@ type DefaultMessage struct {
 	OrderResults []PORC
 	Terminator   Terminator `astm:"L"`
 }
+
+type DefaultMultiMessage struct {
+	Messages []DefaultMessage
+}

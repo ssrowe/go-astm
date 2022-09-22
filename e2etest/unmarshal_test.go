@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
 	"time"
 
@@ -450,15 +449,15 @@ func TestFullMultipleASTMMessage(t *testing.T) {
 	data = data + "R|1|^^^SARSCOV2IGA|4,14|Ratio|\r"
 	data = data + "L|1|N"
 
-	err, messages := lis2a2.UnmarshalMultiple(
-		[]byte(data),
-		reflect.TypeOf((*[]standardlis2a2.DefaultMessage)(nil)).Elem(),
+	var message standardlis2a2.DefaultMultiMessage
+	err := lis2a2.Unmarshal(
+		[]byte(data), &message,
 		lis2a2.EncodingUTF8,
 		lis2a2.TimezoneEuropeBerlin)
 
 	assert.Nil(t, err)
-	assert.NotNil(t, messages)
-	assert.Equal(t, 4, len(messages))
+	assert.NotNil(t, message)
+	assert.Equal(t, 4, len(message.Messages))
 }
 
 func TestFullMultipleASTMMessageWithWrongInput(t *testing.T) {
@@ -543,4 +542,29 @@ func TestFailOnUndisciplinedMultipleCRCRatEndOfLine(t *testing.T) {
 		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
 
 	assert.Nil(t, err)
+}
+
+func TestMultipleMessagesInOne(t *testing.T) {
+	data := ""
+	data = data + "H|\\^&|||\u000d\u000d"
+	data = data + "P|1||DIA-04-066-7-1\u000d\u000d"
+	data = data + "O|1|||^^^SARS-CoV-2 NeutraLISA||20220715071342\u000d\u000d"
+	data = data + "R|1|^^^SARS-CoV-2 NeutraLISA|12,5|% IH|\u000d\u000d"
+	data = data + "L|1|N\u000d\u000d"
+	data = data + "H|\\^&|||\u000d\u000d"
+	data = data + "P|1||DIA-04-066-7-2\u000d\u000d"
+	data = data + "O|1|||^^^SARS-CoV-2 NeutraLISA||20220715071343\u000d\u000d"
+	data = data + "R|1|^^^SARS-CoV-2 NeutraLISA|99,66|% IH|\u000d\u000d"
+	data = data + "L|1|N\u000d\u000d"
+
+	var message standardlis2a2.DefaultMultiMessage
+	err := lis2a2.Unmarshal([]byte(data), &message,
+		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)
+
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(message.Messages))
+	assert.Equal(t, "DIA-04-066-7-2", message.Messages[1].OrderResults[0].Patient.LabAssignedPatientID)
+
+	assert.Equal(t, "12,5", message.Messages[0].OrderResults[0].CommentedResult[0].Result.DataMeasurementValue)
+	assert.Equal(t, "99,66", message.Messages[1].OrderResults[0].CommentedResult[0].Result.DataMeasurementValue)
 }
