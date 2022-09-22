@@ -381,10 +381,14 @@ func TestGermanLanguage(t *testing.T) {
 
 	var message MessageGermanLanguageTest
 
-	// Windows1252
-
 	encdata := helperEncode(charmap.Windows1252, []byte(data))
 	err := lis2a2.Unmarshal([]byte(encdata), &message, lis2a2.EncodingWindows1252, lis2a2.TimezoneEuropeBerlin)
+	assert.Nil(t, err)
+	assert.Equal(t, "König", message.Patient.LastName)
+	assert.Equal(t, "#$§?/+öäüß", message.Patient.FirstName)
+
+	encdata = helperEncode(charmap.ISO8859_1, []byte(data))
+	err = lis2a2.Unmarshal([]byte(encdata), &message, lis2a2.EncodingISO8859_1, lis2a2.TimezoneEuropeBerlin)
 	assert.Nil(t, err)
 	assert.Equal(t, "König", message.Patient.LastName)
 	assert.Equal(t, "#$§?/+öäüß", message.Patient.FirstName)

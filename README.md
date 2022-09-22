@@ -15,6 +15,7 @@ Golang library for handling ASTM lis2a2 Procotol
     - DOS852 
     - DOS855 
     - DOS866 
+	- ISO8859_1
   - Timezone conversion on marshal and unmarshal
   - Marshalling and Unmarshalling supported
   - Custom delimiters are recognized in the Header and appplied (defaults are \^&)
@@ -65,6 +66,21 @@ err := lis2a2.Unmarshal([]byte(textdata), &message,
 if err != nil {
   log.Fatal(err)		
 }
+```
+
+## Reading ASTM with multiple message in one transmission
+The same code, just use DefaultMultiMessage:
+
+``` go
+  var message standardlis2a2.DefaultMultiMessage
+
+  lis2a2.Unmarshal([]byte(textdata), &message,
+		lis2a2.EncodingUTF8, lis2a2.TimezoneEuropeBerlin)		
+
+  for _, message := range message.Messages {
+	fmt.Printf("%+v", message)
+  }
+  
 ```
 
 ## Writing ASM

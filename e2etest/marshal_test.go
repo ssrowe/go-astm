@@ -290,4 +290,14 @@ func TestGermanLanguageDecoder(t *testing.T) {
 	expectedWindows1252 := helperEncode(charmap.Windows1252, []byte("P|1||||Nügendiß^Högendäg|||||||||||||||||||||||||||||"))
 
 	assert.Equal(t, expectedWindows1252, filedata[0])
+
+	// test for iso8859_1
+	filedata, err = lis2a2.Marshal(record, lis2a2.EncodingISO8859_1, lis2a2.TimezoneEuropeBerlin, lis2a2.StandardNotation)
+
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(filedata))
+
+	expectedWindowsISO8859_1 := helperEncode(charmap.ISO8859_1, []byte("P|1||||Nügendiß^Högendäg|||||||||||||||||||||||||||||"))
+
+	assert.Equal(t, expectedWindowsISO8859_1, filedata[0])
 }

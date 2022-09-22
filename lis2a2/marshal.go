@@ -135,6 +135,10 @@ func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encod
 		for i, x := range buffer {
 			buffer[i] = EncodeUTF8ToCharset(charmap.Windows1252, x)
 		}
+	case EncodingISO8859_1:
+		for i, x := range buffer {
+			buffer[i] = EncodeUTF8ToCharset(charmap.ISO8859_1, x)
+		}
 	default:
 		return nil, fmt.Errorf("invalid Codepage Id='%d' in marshalling message", enc)
 	}
