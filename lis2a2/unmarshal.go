@@ -50,7 +50,10 @@ func Unmarshal(messageData []byte, targetStruct interface{}, enc Encoding, tz Ti
 		if messageBytes, err = EncodeCharsetToUTF8From(charmap.Windows1252, messageData); err != nil {
 			return err
 		}
-
+	case ISO8859_1:
+		if messageBytes, err = EncodeCharsetToUTF8From(charmap.ISO8859_1, messageData); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("invalid Codepage Id='%d' - %w", enc, err)
 	}

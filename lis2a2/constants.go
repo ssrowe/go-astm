@@ -18,6 +18,7 @@ const EncodingWindows1252 Encoding = 5
 const EncodingDOS852 Encoding = 6
 const EncodingDOS855 Encoding = 7
 const EncodingDOS866 Encoding = 8
+const ISO8859_1 Encoding = 9
 
 type Timezone string
 
