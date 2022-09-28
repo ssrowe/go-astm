@@ -17,6 +17,16 @@ import (
 **/
 func Marshal(message interface{}, enc Encoding, tz Timezone, notation Notation) ([][]byte, error) {
 
+	// dereference for as long as we deal with pointers
+	if reflect.TypeOf(message).Kind() == reflect.Ptr {
+		// return Marshal(reflect.ValueOf(message).Elem(), enc, tz, notation)
+		return [][]byte{}, fmt.Errorf("marshal can not be used with pointers")
+	}
+
+	if reflect.ValueOf(message).Kind() != reflect.Struct {
+		return [][]byte{}, fmt.Errorf("can only marshal annotated structs (see readme)")
+	}
+
 	location, err := time.LoadLocation(string(tz))
 	if err != nil {
 		return [][]byte{}, err
@@ -78,7 +88,7 @@ func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encod
 				}
 
 			} else {
-				return nil, errors.New(fmt.Sprintf("Invalid Datatype without any annotation '%s'. You can use struct or slices of structs.", currentRecord.Kind()))
+				return nil, fmt.Errorf("invalid Datatype without any annotation '%s'. You can use struct or slices of structs.", currentRecord.Kind())
 			}
 
 		} else {
@@ -157,6 +167,10 @@ func EncodeUTF8ToCharset(charmap *charmap.Charmap, data []byte) []byte {
 }
 
 func processOneRecord(recordType string, currentRecord reflect.Value, generatedSequenceNumber int, location *time.Location, repeatDelimiter, componentDelimiter, escapeDelimiter *string) (string, error) {
+
+	if currentRecord.Kind() != reflect.Struct {
+		return "", nil // beeing not a struct is not an error
+	}
 
 	fieldList := make(OutputRecords, 0)
 

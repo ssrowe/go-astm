@@ -31,7 +31,31 @@ go get github.com/DRK-Blutspende-BaWueHe/go-astm/...
 
 ## Messaage Structure
 
-Every instrument is a little different. Use the lis2a2-default implmenetation provided with this library as a starting point.
+In order to encode (marshal) or decode (unmarshal) a message from or to lis, you need to annotate a struct in go to identify the record-types 
+and within the record the field's location.
+
+The Message does now  the information of what type of message is mapped by annotation. 
+
+``` golang
+type Message struct {
+	Header struct {
+		field1 string `astm:"1"`
+		field2 string `astm:"2"`
+	} `astm:"H"` // identify the Record-Type
+	PatientOrder[] struct {
+		Patient struct {
+			field1 string `astm:"1"`
+			field2 string `astm:"2"`
+			...
+		} `astm:"P"`
+		Order struct {
+			...
+		} `astm:"O"
+	} 
+}
+```
+
+The lis2a2-default implementation provided with this library as a starting point, it should fit most instruments. Alter it as required. 
 
 ``` go
 type CommentedResult struct {

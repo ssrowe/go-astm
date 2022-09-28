@@ -301,3 +301,24 @@ func TestGermanLanguageDecoder(t *testing.T) {
 
 	assert.Equal(t, expectedWindowsISO8859_1, filedata[0])
 }
+
+// Due to a bug that panics
+func TestFailMarshalOnlyHeader(t *testing.T) {
+
+	var header standardlis2a2.Header
+
+	message, err := lis2a2.Marshal(header, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.ShortNotation)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, message)
+}
+
+// Pointers to structures dont work for marshalling
+func TestFailOnHeaderIsA_Reference(t *testing.T) {
+
+	var header standardlis2a2.Header
+
+	_, err := lis2a2.Marshal(&header, lis2a2.EncodingASCII, lis2a2.TimezoneEuropeBerlin, lis2a2.ShortNotation)
+
+	assert.NotNil(t, err)
+}
