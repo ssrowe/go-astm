@@ -83,7 +83,7 @@ The same code, just use DefaultMultiMessage:
   
 ```
 
-## Writing ASM
+## Writing ASTM
 
 Converting an annotated Structure (see above) to an enocded bytestream. 
 
@@ -98,6 +98,28 @@ for _, line := range lines {
 		fmt.Println(linestr)
 }
 ```
+
+## Identifying a message
+Identifying the type of a message without decoding it. There are 3 Types of messages 
+  - MessageTypeQuery 
+  - MessageTypeOrdersOnly
+  - MessageTypeOrdersAndResults
+
+``` go
+messageType, _ := IdentifyMessage([]byte(astm), EncodingUTF8)
+
+switch (messageType) {
+	case MessageTypeUnkown :
+	  ...
+	case MessageTypeQuery :
+	  ...
+	case MessageTypeOrdersOnly :
+	  ...
+	case MessageTypeOrdersAndResults :
+	  ...
+}
+```
+
 ## Message Structure and Annotation
 
 ### Optional records
