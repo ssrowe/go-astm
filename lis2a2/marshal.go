@@ -233,6 +233,8 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 						value := time.In(location).Format("20060102")
 						fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, value)
 					}
+				} else {
+					fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, "")
 				}
 			default:
 				return "", errors.New(fmt.Sprintf("Invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name()))
@@ -288,90 +290,58 @@ func (or OutputRecords) Swap(i, j int) { or[i], or[j] = or[j], or[i] }
 
 func generateOutputRecord(recordtype string, fieldList OutputRecords, REPEAT_DELIMITER, COMPONENT_DELIMITER, ESCAPE_DELMITER string) string {
 
-	output := ""
+	var output = ""
 
+	// Record-ID, typical "H", "R", "O", .....
+	output += recordtype
+
+	// render fields - concat arrays
 	sort.Sort(fieldList)
 
-	componentbuffer := make([]string, 100)
-	maxComponent := 0
+	var componentbuffer []string
+	var lastComponentIdx = -1
 
-	repeatbuffer := make([]string, 100)
-	maxRepeat := 0
-
-	// add a terminator to reduce abortion--spaghetti-code
-	fieldList = append(fieldList, OutputRecord{Field: -1})
-
-	fieldGroup := -1 // groupchange on every field-change
-	repeatGroup := 0 // groupchange on every repeat-group (see astm-format field,repeat,component,(escape))
-
-	output = output + recordtype + "|" // Record-ID, typical "H", "R", "O", .....
-
-	lastGeneratedFieldNo := -1
-
+	var currFieldGroup = -1
+	var prevFieldGroup = -1
+	var currFieldRepeat = -1
+	var prevFieldRepeat = -1
 	for _, field := range fieldList {
 
-		if lastGeneratedFieldNo > 0 && lastGeneratedFieldNo < field.Field-1 {
-			for i := 0; i < field.Field-lastGeneratedFieldNo-1; i++ {
-				output = output + "|"
-			}
-		}
+		prevFieldGroup = currFieldGroup
+		currFieldGroup = field.Field
+		var newFieldGroup = prevFieldGroup != currFieldGroup
 
-		fieldGroupBreak := field.Field != fieldGroup && fieldGroup != -1
-		repeatGroupBreak := field.Repeat != repeatGroup
-		if fieldGroupBreak || repeatGroupBreak {
+		prevFieldRepeat = currFieldRepeat
+		currFieldRepeat = field.Repeat
+		var newRepeatGroup = prevFieldRepeat != currFieldRepeat
 
-			buffer := ""
-			for c := 0; c <= maxComponent; c++ {
-				buffer = buffer + componentbuffer[c]
-				if c < maxComponent {
-					buffer = buffer + COMPONENT_DELIMITER
+		if newFieldGroup || newRepeatGroup {
+
+			// render all in component buffer
+			if lastComponentIdx > -1 {
+				output += componentbuffer[0]
+				for i := 1; i <= lastComponentIdx; i++ {
+					output += COMPONENT_DELIMITER + componentbuffer[i]
 				}
 			}
 
-			repeatbuffer[repeatGroup] = buffer // sort components to repeatGroup, until no more items, then break
-
-			if fieldGroupBreak { // new field starts = write buffer and empty
-				for i := 0; i <= maxRepeat; i++ {
-					output = output + repeatbuffer[i]
-					if i < maxRepeat {
-						output = output + REPEAT_DELIMITER
-					}
-				}
-				output = output + "|"
-				maxRepeat = 0
-				repeatGroup = 0
-				lastGeneratedFieldNo = field.Field
+			if newFieldGroup {
+				output += "|"
+			} else if newRepeatGroup {
+				output += REPEAT_DELIMITER
 			}
 
-			if repeatGroupBreak {
-				repeatGroup = field.Repeat
-			}
-
-			for c := 0; c < len(componentbuffer); c++ {
-				componentbuffer[c] = ""
-			}
-			maxComponent = 0
-			fieldGroup = field.Field
-		}
-
-		if fieldGroup == -1 { // starting the very first group in iteration
-			fieldGroup = field.Field
+			componentbuffer = make([]string, 100)
+			lastComponentIdx = -1
 		}
 
 		componentbuffer[field.Component] = field.Value
-		if field.Component > maxComponent {
-			maxComponent = field.Component
+
+		if field.Component > lastComponentIdx {
+			lastComponentIdx = field.Component
 		}
-		if field.Repeat > maxRepeat {
-			maxRepeat = field.Repeat
-		}
+		//fmt.Println(currFieldGroup, ".", currFieldRepeat, "-", field.Value)
 	}
 
-	// the above algorithm generates the pattern <field>+"|", which causes the record to always! have one delimiter too much at the end
-	if len(output) > 2 {
-		if output[len(output)-1:] == "|" {
-			output = output[:len(output)-1] // obsolete the very last "|"
-		}
-	}
 	return output
 }
