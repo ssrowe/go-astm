@@ -47,7 +47,7 @@ func TestSimpleMarshal(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	assert.Equal(t, "H|\\^&||password|test||||||||0.1.0", string(lines[0]))
+	assert.Equal(t, "H|\\^&||password|test||||||||0.1.0|", string(lines[0]))
 	assert.Equal(t, "?|1|first-arr1^^third-arr1\\first-arr2^second-arr2|", string(lines[1]))
 	assert.Equal(t, "L|1|", string(lines[2]))
 }
@@ -77,7 +77,7 @@ func TestGenverateSequence(t *testing.T) {
 		fmt.Println(linestr)
 	}
 
-	assert.Equal(t, "H|\\^&|||||||||||", string(lines[0]))
+	assert.Equal(t, "H|\\^&||||||||||||", string(lines[0]))
 	assert.Equal(t, "P|1||||Firstus'^Firstie|||||||||||||||||||||||||||||", string(lines[1]))
 	assert.Equal(t, "P|2||||Secundus'^Secundie|||||||||||||||||||||||||||||", string(lines[2]))
 	assert.Equal(t, "L|1|", string(lines[3]))
@@ -125,12 +125,13 @@ func TestNestedStruct(t *testing.T) {
 		fmt.Println(linestr)
 	}
 
-	assert.Equal(t, "H|\\^&|||||||||||", string(lines[0]))
+	// TODO: ? with this struct the Patient sequence will not advance - always P|1...
+	assert.Equal(t, "H|\\^&||||||||||||", string(lines[0]))
 	assert.Equal(t, "P|1||||Norris^Chuck|||||||||||||||||||||||Binaries||||||", string(lines[1]))
-	assert.Equal(t, "R|1|^^^^SulfurBloodCount^^|^^100|%||||||||^|", string(lines[2]))
-	assert.Equal(t, "R|2|^^^^Catblood^^|^^>100000|U/l||||||||^|", string(lines[3]))
+	assert.Equal(t, "R|1|^^^^SulfurBloodCount^^|^^100|%||||||^|||", string(lines[2]))
+	assert.Equal(t, "R|2|^^^^Catblood^^|^^>100000|U/l||||||^|||", string(lines[3]))
 	assert.Equal(t, "P|1||||Cartman^Eric|||||||||||||||||||||||None||||||", string(lines[4]))
-	assert.Equal(t, "R|1|^^^^Fungenes^^|^^present|none||||||||^|", string(lines[5]))
+	assert.Equal(t, "R|1|^^^^Fungenes^^|^^present|none||||||^|||", string(lines[5]))
 	assert.Equal(t, "L|1|", string(lines[6]))
 }
 
@@ -139,7 +140,7 @@ type TimeTestMessageMarshal struct {
 }
 
 /*
-	Test provides current time as UTC and expects the converter to stream as Belrin-Time
+Test provides current time as UTC and expects the converter to stream as Belrin-Time
 */
 func TestTimeLocalization(t *testing.T) {
 
@@ -175,7 +176,7 @@ type TestMarshalEnumMessage struct {
 }
 
 /*
-	Marshalling of enums
+Marshalling of enums
 */
 func TestEnumMarshal(t *testing.T) {
 	var msg TestMarshalEnumMessage
@@ -198,7 +199,7 @@ type TestCorrectFieldEnumeration struct {
 }
 
 /*
-	Testing field assignments
+Testing field assignments
 */
 type OrderRequestV5 struct {
 	// ID                  uuid.UUID `json:"id" db:"id"`
@@ -245,12 +246,12 @@ func TestFieldEnumeration(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	assert.Equal(t, "R|1||^^^\\^^^|||||^^^|||N||||||||||", string(record[0]))
+	assert.Equal(t, "R|1||^^^\\^^^|^^^|||||||N||||||||||", string(record[0]))
 
 }
 
 /*
-	Testing bug: one delimiter too much
+Testing bug: one delimiter too much
 */
 type TestOneDlimiterTooMuchStruct struct {
 	Terminator standardlis2a2.Terminator `astm:"L"`
@@ -269,9 +270,9 @@ func TestOneDlimiterTooMuch(t *testing.T) {
 	assert.Equal(t, "L|1|N", string(filedata[0]))
 }
 
-//--------------------------------------------------------------
+// --------------------------------------------------------------
 // Testing bug: German Language encoding
-//--------------------------------------------------------------
+// --------------------------------------------------------------
 type TestGermanLanguageDecoderRecord struct {
 	Patient standardlis2a2.Patient `astm:"P"`
 }
