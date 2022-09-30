@@ -2,7 +2,6 @@ package lis2a2
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -88,7 +87,7 @@ func iterateStructFieldsAndBuildOutput(message interface{}, depth int, enc Encod
 				}
 
 			} else {
-				return nil, fmt.Errorf("invalid Datatype without any annotation '%s'. You can use struct or slices of structs.", currentRecord.Kind())
+				return nil, fmt.Errorf("ivalid Datatype without any annotation '%s' - you can use struct or slices of structs", currentRecord.Kind())
 			}
 
 		} else {
@@ -187,7 +186,7 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 
 		fieldIdx, repeatIdx, componentIdx, err := readFieldAddressAnnotation(fieldAstmTagsList[0])
 		if err != nil {
-			return "", fmt.Errorf("Invalid annotation for field %s : (%w)", currentRecord.Type().Field(i).Name, err)
+			return "", fmt.Errorf("invalid annotation for field %s : (%w)", currentRecord.Type().Field(i).Name, err)
 		}
 
 		switch field.Type().Kind() {
@@ -195,7 +194,7 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 			value := ""
 
 			if sliceContainsString(fieldAstmTagsList, ANNOTATION_SEQUENCE) {
-				return "", errors.New(fmt.Sprintf("Invalid annotation %s for string-field", ANNOTATION_SEQUENCE))
+				return "", fmt.Errorf("invalid annotation %s for string-field", ANNOTATION_SEQUENCE)
 			}
 
 			// if no delimiters are given, default is \^&
@@ -237,10 +236,10 @@ func processOneRecord(recordType string, currentRecord reflect.Value, generatedS
 					fieldList = addASTMFieldToList(fieldList, fieldIdx, repeatIdx, componentIdx, "")
 				}
 			default:
-				return "", errors.New(fmt.Sprintf("Invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name()))
+				return "", fmt.Errorf("invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name())
 			}
 		default:
-			return "", errors.New(fmt.Sprintf("Invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name()))
+			return "", fmt.Errorf("invalid field type '%s' in struct '%s', input not processed", field.Type().Name(), currentRecord.Type().Name())
 		}
 
 	}
@@ -326,7 +325,13 @@ func generateOutputRecord(recordtype string, fieldList OutputRecords, REPEAT_DEL
 			}
 
 			if newFieldGroup {
-				output += "|"
+				if prevFieldGroup > 0 { // for the first iteration we don't know on which number the field numbering starts
+					for i := 0; i < currFieldGroup-prevFieldGroup; i++ {
+						output += "|"
+					}
+				} else {
+					output += "|"
+				}
 			} else if newRepeatGroup {
 				output += REPEAT_DELIMITER
 			}
@@ -340,7 +345,14 @@ func generateOutputRecord(recordtype string, fieldList OutputRecords, REPEAT_DEL
 		if field.Component > lastComponentIdx {
 			lastComponentIdx = field.Component
 		}
-		//fmt.Println(currFieldGroup, ".", currFieldRepeat, "-", field.Value)
+	}
+
+	// render last field in component buffer
+	if lastComponentIdx > -1 {
+		output += componentbuffer[0]
+		for i := 1; i <= lastComponentIdx; i++ {
+			output += COMPONENT_DELIMITER + componentbuffer[i]
+		}
 	}
 
 	return output
